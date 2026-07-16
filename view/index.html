@@ -1,0 +1,2858 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RaceMenu Prisma</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        /* Font sizes/paddings below are in rem so the A-/A+ scale control
+           (sets html font-size) resizes the whole UI proportionally. */
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+
+        body {
+            background: transparent;
+            color: #e8e6e0;
+            cursor: grab;
+        }
+
+        body.rotating { cursor: grabbing; }
+
+        /* --- slider panel (left side by default) --- */
+        .rm-panel {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            bottom: 16px;
+            width: 500px;
+            min-width: 380px;
+            max-width: 780px;
+            display: none;
+            flex-direction: column;
+            background: rgba(14, 16, 20, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 10px;
+            backdrop-filter: blur(6px);
+            overflow: hidden;
+            cursor: default;
+        }
+
+        .rm-panel.open { display: flex; }
+
+        /* Collapsed = only the titlebar shows; bottom/height overrides beat
+           both the default CSS anchor and any inline style from dragging. */
+        .rm-panel.collapsed {
+            bottom: auto !important;
+            height: auto !important;
+        }
+
+        .rm-panel.collapsed .rm-body { display: none; }
+
+        .rm-resizer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 8px;
+            cursor: ew-resize;
+            z-index: 2;
+        }
+
+        .rm-resizer:hover { background: rgba(216, 198, 144, 0.15); }
+
+        /* always-visible title bar: drag handle + collapse toggle */
+        .rm-titlebar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.7rem 0.8rem 0.7rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: move;
+            flex: 0 0 auto;
+        }
+
+        .rm-titlebar .tb-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .rm-titlebar h1 {
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #d8c690;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .rm-titlebar .sub {
+            font-size: 0.72rem;
+            color: #9aa0a8;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .collapse-btn {
+            flex: 0 0 auto;
+            padding: 0.25rem 0.6rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
+            background: #1d2127;
+            color: #b8bec6;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .collapse-btn:hover { background: #2a2f36; }
+
+        .rm-body {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .rm-head {
+            padding: 0.9rem 1rem 0.6rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            flex: 0 0 auto;
+        }
+
+        .rm-name-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 0.6rem;
+        }
+
+        .rm-name-row input {
+            flex: 1;
+            padding: 0.4rem 0.65rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
+            background: #1d2127;
+            color: #e8e6e0;
+            font-size: 0.9rem;
+            outline: none;
+            user-select: text;
+        }
+
+        .rm-name-row button.accent {
+            padding: 0.4rem 1.2rem;
+            border: 1px solid rgba(216, 198, 144, 0.5);
+            border-radius: 6px;
+            background: #4a4230;
+            color: #f0e6c8;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .rm-name-row button.accent:hover { background: #5a5040; }
+
+        /* character tools: rotate / zoom / light / undress / poses / presets */
+        .rm-scene-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .rm-scene-row .spacer { flex: 1; }
+
+        .rm-scene-row button,
+        .rm-scene-row select {
+            padding: 0.3rem 0.7rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
+            background: #1d2127;
+            color: #b8bec6;
+            font-size: 0.78rem;
+            cursor: pointer;
+        }
+
+        .rm-scene-row button:hover { background: #2a2f36; }
+
+        .rm-scene-row button.active {
+            background: #4a4230;
+            color: #f0e6c8;
+            border-color: rgba(216, 198, 144, 0.5);
+        }
+
+        .rm-scene-row .scale-pct {
+            font-size: 0.72rem;
+            color: #9aa0a8;
+            min-width: 2.6rem;
+            text-align: center;
+        }
+
+        /* presets */
+        .rm-presets {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 0.5rem;
+            padding: 8px;
+            background: rgba(22, 25, 31, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 8px;
+        }
+
+        .rm-presets.open { display: flex; }
+
+        .preset-list {
+            max-height: 9rem;
+            overflow-y: auto;
+        }
+
+        .preset-list::-webkit-scrollbar { width: 8px; }
+        .preset-list::-webkit-scrollbar-thumb { background: #3a4048; border-radius: 4px; }
+
+        .preset-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.25rem 0.4rem;
+            border-radius: 5px;
+            font-size: 0.82rem;
+        }
+
+        .preset-row:hover { background: rgba(255, 255, 255, 0.06); }
+
+        .preset-row button {
+            padding: 0.15rem 0.6rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            background: #2a2f36;
+            color: #e8e6e0;
+            font-size: 0.72rem;
+            cursor: pointer;
+        }
+
+        .preset-row button:hover { background: #3a4048; }
+
+        .preset-save-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .preset-save-row input {
+            flex: 1;
+            padding: 0.3rem 0.55rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
+            background: #1d2127;
+            color: #e8e6e0;
+            font-size: 0.82rem;
+            outline: none;
+            user-select: text;
+        }
+
+        .preset-save-row button {
+            padding: 0.3rem 0.9rem;
+            border: 1px solid rgba(216, 198, 144, 0.5);
+            border-radius: 6px;
+            background: #4a4230;
+            color: #f0e6c8;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+
+        .preset-status {
+            font-size: 0.72rem;
+            color: #9aa0a8;
+            min-height: 0.9rem;
+        }
+
+        .preset-info {
+            padding: 6px 8px;
+            margin: 2px 0 4px;
+            background: rgba(14, 16, 20, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            font-size: 0.72rem;
+            color: #b8bec6;
+            user-select: text;
+        }
+
+        .preset-info .pi-title {
+            color: #d8c690;
+            text-transform: uppercase;
+            font-size: 0.65rem;
+            letter-spacing: 0.05em;
+            margin: 4px 0 2px;
+        }
+
+        .preset-info .mod-ok { color: #8fc98f; }
+        .preset-info .mod-missing { color: #e08080; font-weight: 600; }
+        .preset-info .pi-line { padding: 1px 0; }
+
+        /* custom dropdown (native <select> popups are unreadable in Ultralight) */
+        .dd-menu {
+            display: none;
+            flex-direction: column;
+            margin-top: 0.4rem;
+            max-height: 10rem;
+            overflow-y: auto;
+            background: rgba(22, 25, 31, 0.97);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 8px;
+            padding: 4px;
+        }
+
+        .dd-menu.open { display: flex; }
+
+        .dd-menu::-webkit-scrollbar { width: 8px; }
+        .dd-menu::-webkit-scrollbar-thumb { background: #3a4048; border-radius: 4px; }
+
+        .dd-menu .dd-item {
+            padding: 0.3rem 0.6rem;
+            border-radius: 5px;
+            font-size: 0.82rem;
+            color: #c8cdd4;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dd-menu .dd-item:hover { background: rgba(216, 198, 144, 0.15); color: #f0e6c8; }
+
+        /* slider group separators (e.g. 3BA "Breasts - *", "Torso - *") */
+        .group-header {
+            margin: 0.7rem 6px 0.1rem;
+            padding-bottom: 2px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #d8c690;
+            border-bottom: 1px solid rgba(216, 198, 144, 0.25);
+        }
+
+        /* paint rows (warpaint / body / hand / foot / face) */
+        .paint-tex {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            padding: 2px 0 4px;
+        }
+
+        .paint-tex button {
+            flex: 1;
+            min-width: 0;
+            text-align: left;
+            padding: 0.3rem 0.6rem;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 6px;
+            background: #1d2127;
+            color: #b8bec6;
+            font-size: 0.78rem;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .paint-tex button:hover { background: #2a2f36; }
+
+        /* category chips */
+        .rm-cats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            padding: 0.55rem 1rem 0.2rem;
+        }
+
+        .rm-cats .chip {
+            padding: 0.22rem 0.65rem;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 20px;
+            background: #1d2127;
+            color: #9aa0a8;
+            font-size: 0.75rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .rm-cats .chip:hover { background: #2a2f36; }
+
+        .rm-cats .chip.active {
+            background: #4a4230;
+            color: #f0e6c8;
+            border-color: rgba(216, 198, 144, 0.5);
+        }
+
+        .rm-controls {
+            display: flex;
+            gap: 6px;
+            padding: 0.5rem 1rem 0.6rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            align-items: center;
+        }
+
+        .rm-controls input[type="text"] {
+            flex: 1;
+            min-width: 6rem;
+            padding: 0.4rem 0.65rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
+            background: #1d2127;
+            color: #e8e6e0;
+            font-size: 0.9rem;
+            outline: none;
+            user-select: text;
+        }
+
+        .rm-controls button.toggle {
+            flex: 0 0 auto;
+            padding: 0.4rem 0.65rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
+            background: #1d2127;
+            color: #9aa0a8;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        .rm-controls button.toggle.active {
+            background: #4a4230;
+            color: #f0e6c8;
+            border-color: rgba(216, 198, 144, 0.5);
+        }
+
+        .rm-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 12px 12px;
+        }
+
+        .rm-list::-webkit-scrollbar { width: 8px; }
+        .rm-list::-webkit-scrollbar-thumb { background: #3a4048; border-radius: 4px; }
+
+        .rm-row {
+            padding: 0.5rem 6px 0.25rem;
+            border-radius: 6px;
+        }
+
+        .rm-row:hover { background: rgba(255, 255, 255, 0.05); }
+
+        .rm-row .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.88rem;
+            margin-bottom: 0.2rem;
+            gap: 6px;
+        }
+
+        .rm-row .name { flex: 1; min-width: 0; }
+
+        .rm-row .val {
+            flex: 0 0 auto;
+            color: #d8c690;
+            font-variant-numeric: tabular-nums;
+            cursor: pointer;
+        }
+
+        .rm-row .custom-mark { color: #6fa8dc; font-size: 0.65rem; margin-left: 6px; }
+
+        .rm-row.race {
+            cursor: pointer;
+            padding: 0.6rem 6px;
+        }
+
+        .rm-row.race:hover { background: rgba(216, 198, 144, 0.08); }
+
+        .rm-row.race.active-race {
+            background: rgba(47, 93, 58, 0.25);
+            border-left: 2px solid #6fbf7f;
+        }
+
+        .race-badge {
+            font-size: 0.65rem;
+            color: #9aa0a8;
+            padding: 2px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+        }
+
+        .active-race .race-badge {
+            color: #c9f2d0;
+            border-color: rgba(111, 191, 127, 0.5);
+        }
+
+        .part-name {
+            font-size: 0.7rem;
+            color: #8fa8c0;
+            padding: 1px 6px 3px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .raw-info {
+            font-size: 0.68rem;
+            color: #b0885a;
+            padding: 1px 6px 3px;
+            user-select: text;
+        }
+
+        .rm-row.changed .top .name { color: #f0e6c8; }
+        .rm-row.changed .top .name::before {
+            content: "";
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #d8c690;
+            margin-right: 6px;
+            vertical-align: 2px;
+        }
+
+        .rm-row .top .name { cursor: pointer; }
+
+        .rm-row .val input[type="number"] {
+            width: 4.2rem;
+            padding: 1px 4px;
+            border: 1px solid rgba(216, 198, 144, 0.5);
+            border-radius: 4px;
+            background: #1d2127;
+            color: #f0e6c8;
+            font-size: 0.85rem;
+            font-variant-numeric: tabular-nums;
+            outline: none;
+            user-select: text;
+        }
+
+        .swatch {
+            display: inline-block;
+            width: 1.1rem;
+            height: 1.1rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            vertical-align: -0.2rem;
+            margin-left: 8px;
+            cursor: pointer;
+            background:
+                linear-gradient(45deg, #666 25%, transparent 25%, transparent 75%, #666 75%),
+                linear-gradient(45deg, #666 25%, #999 25%, #999 75%, #666 75%);
+            background-size: 8px 8px;
+            background-position: 0 0, 4px 4px;
+        }
+
+        .swatch .fill {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        /* ---------- custom color picker ---------- */
+
+        .color-editor {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            padding: 8px;
+            margin: 4px 0 6px;
+            background: rgba(22, 25, 31, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 8px;
+        }
+
+        .color-editor.open { display: flex; }
+
+        .cp-sv {
+            position: relative;
+            width: 100%;
+            height: 9rem;
+            border-radius: 6px;
+            cursor: crosshair;
+            background-image:
+                linear-gradient(to top, #000, rgba(0, 0, 0, 0)),
+                linear-gradient(to right, #fff, rgba(255, 255, 255, 0));
+        }
+
+        .cp-cursor {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .cp-bar {
+            position: relative;
+            width: 100%;
+            height: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .cp-bar .cp-thumb {
+            position: absolute;
+            top: -2px;
+            bottom: -2px;
+            width: 8px;
+            border: 2px solid #fff;
+            border-radius: 4px;
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+
+        .cp-hue {
+            background: linear-gradient(to right,
+                #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+        }
+
+        .cp-alpha {
+            background:
+                linear-gradient(45deg, #666 25%, transparent 25%, transparent 75%, #666 75%),
+                linear-gradient(45deg, #666 25%, #999 25%, #999 75%, #666 75%);
+            background-size: 10px 10px;
+            background-position: 0 0, 5px 5px;
+        }
+
+        .cp-alpha .cp-alpha-grad {
+            position: absolute;
+            inset: 0;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+
+        .cp-fields {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .cp-fields .cp-preview {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background:
+                linear-gradient(45deg, #666 25%, transparent 25%, transparent 75%, #666 75%),
+                linear-gradient(45deg, #666 25%, #999 25%, #999 75%, #666 75%);
+            background-size: 10px 10px;
+            background-position: 0 0, 5px 5px;
+            overflow: hidden;
+        }
+
+        .cp-fields .cp-preview span {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .cp-fields input.cp-hex {
+            width: 6.2rem;
+            padding: 0.3rem 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
+            background: #1d2127;
+            color: #e8e6e0;
+            font-size: 0.85rem;
+            font-family: Consolas, monospace;
+            outline: none;
+            user-select: text;
+        }
+
+        .cp-fields .cp-alpha-label {
+            font-size: 0.75rem;
+            color: #9aa0a8;
+        }
+
+        .cp-palette {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .cp-palette .pal,
+        .recent-colors .swatch-mini {
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+        }
+
+        .cp-palette .pal:hover,
+        .recent-colors .swatch-mini:hover { border-color: #d8c690; }
+
+        .recent-colors {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .recent-colors .rc-label {
+            font-size: 0.7rem;
+            color: #9aa0a8;
+            margin-right: 4px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 1.4rem;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 6px;
+            background: #3a4048;
+            border-radius: 3px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 1.1rem;
+            height: 1.1rem;
+            margin-top: calc(3px - 0.55rem);
+            border-radius: 50%;
+            background: #d8c690;
+            cursor: pointer;
+        }
+
+        .rm-foot {
+            padding: 0.5rem 1rem;
+            font-size: 0.72rem;
+            color: #9aa0a8;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .rm-foot button {
+            padding: 0.2rem 0.65rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            background: #2a2f36;
+            color: #e8e6e0;
+            font-size: 0.72rem;
+            cursor: pointer;
+        }
+
+        .rm-foot button:hover { background: #3a4048; }
+
+        /* texture hover-preview tooltip (paint texture pickers, preset tint list) */
+        .tex-tooltip {
+            position: fixed;
+            z-index: 50;
+            display: none;
+            padding: 6px;
+            background: rgba(10, 12, 15, 0.96);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            pointer-events: none;
+        }
+
+        .tex-tooltip img {
+            display: block;
+            width: 128px;
+            height: 128px;
+            object-fit: contain;
+            background:
+                linear-gradient(45deg, #333 25%, transparent 25%, transparent 75%, #333 75%),
+                linear-gradient(45deg, #333 25%, #262626 25%, #262626 75%, #333 75%);
+            background-size: 12px 12px;
+            background-position: 0 0, 6px 6px;
+            border-radius: 4px;
+        }
+
+        .tex-tooltip .tt-label {
+            font-size: 0.68rem;
+            color: #b8bec6;
+            margin-top: 4px;
+            max-width: 160px;
+            word-break: break-all;
+        }
+
+        .tex-tooltip .tt-loading {
+            font-size: 0.72rem;
+            color: #9aa0a8;
+            padding: 4px 2px;
+            max-width: 160px;
+        }
+        /* ---------- Prisma 2026 visual system ----------
+           This layer intentionally overrides the legacy Flash-like styling above.
+           Keep the UI airy: the panel is read beside a live 3D character. */
+        :root {
+            --rmp-bg: rgba(9, 14, 24, .88);
+            --rmp-surface: rgba(18, 28, 44, .9);
+            --rmp-surface-hi: rgba(29, 43, 65, .96);
+            --rmp-accent: #72d5ff;
+            --rmp-accent-strong: #b4edff;
+            --rmp-accent-soft: rgba(114, 213, 255, .16);
+            --rmp-text: #eef5ff;
+            --rmp-text-muted: #9fadc1;
+            --rmp-text-dim: #66758c;
+            --rmp-success: #78e0a5;
+            --rmp-danger: #ff8196;
+            --rmp-border: rgba(180, 210, 245, .17);
+            --rmp-border-strong: rgba(114, 213, 255, .55);
+            --rmp-track: rgba(126, 151, 184, .25);
+        }
+        body { color: var(--rmp-text); }
+        .rm-panel { width: 580px; min-width: 430px; max-width: 860px; background: var(--rmp-bg); border-color: var(--rmp-border); border-radius: 16px; box-shadow: 0 18px 70px rgba(0,0,0,.32); }
+        .rm-titlebar { min-height: 4.2rem; padding: .85rem 1.1rem; border-color: var(--rmp-border); background: linear-gradient(90deg, rgba(114,213,255,.11), transparent 62%); }
+        .rm-titlebar h1 { font-size: 1.22rem; color: var(--rmp-text); letter-spacing: .13em; }
+        .rm-titlebar .sub, .rm-foot, .scale-pct { color: var(--rmp-text-muted); }
+        .collapse-btn, .rm-scene-row button, .rm-controls button.toggle, .rm-foot button, .preset-row button { min-height: 2rem; background: var(--rmp-surface); color: var(--rmp-text-muted); border-color: var(--rmp-border); border-radius: 8px; }
+        .collapse-btn:hover, .rm-scene-row button:hover, .rm-controls button.toggle:hover, .rm-foot button:hover, .preset-row button:hover { color: var(--rmp-text); background: var(--rmp-surface-hi); }
+        .rm-scene-row button.active, .rm-controls button.toggle.active { background: var(--rmp-accent-soft); color: var(--rmp-accent-strong); border-color: var(--rmp-border-strong); }
+        .rm-head { padding: 1rem 1.1rem .75rem; border-color: var(--rmp-border); }
+        .rm-name-row input, .rm-controls input[type="text"], .preset-save-row input, .cp-fields input.cp-hex { background: var(--rmp-surface); color: var(--rmp-text); border-color: var(--rmp-border); border-radius: 8px; min-height: 2.35rem; }
+        .rm-name-row button.accent, .preset-save-row button { background: var(--rmp-accent); color: #08111d; border-color: var(--rmp-accent); border-radius: 8px; min-height: 2.35rem; font-weight: 700; }
+        .rm-name-row button.accent:hover, .preset-save-row button:hover { background: var(--rmp-accent-strong); }
+        .rm-cats { flex-wrap: nowrap; overflow-x: auto; gap: .45rem; padding: .75rem 1.1rem .45rem; }
+        .rm-cats .chip { display: inline-flex; align-items: center; gap: .42rem; min-height: 2.25rem; padding: .35rem .72rem; background: transparent; color: var(--rmp-text-muted); border-color: transparent; border-radius: 9px; font-size: .76rem; }
+        .rm-cats .chip svg { width: 1.05rem; height: 1.05rem; fill: none; stroke: currentColor; stroke-width: 1.8; }
+        .rm-cats .chip:hover { color: var(--rmp-text); background: var(--rmp-surface); }
+        .rm-cats .chip.active { background: var(--rmp-accent-soft); color: var(--rmp-accent-strong); border-color: var(--rmp-border-strong); }
+        .rm-controls { padding: .65rem 1.1rem .8rem; border-color: var(--rmp-border); }
+        .rm-list { padding: .65rem 1.1rem 1rem; }
+        .rm-row { padding: .8rem .75rem .7rem; margin-bottom: .3rem; border: 1px solid transparent; border-radius: 10px; }
+        .rm-row:hover { background: var(--rmp-surface); border-color: var(--rmp-border); }
+        .rm-row .top { font-size: .92rem; margin-bottom: .48rem; }
+        .rm-row .val { color: var(--rmp-accent-strong); font-weight: 650; font-size: .82rem; padding: .16rem .4rem; background: var(--rmp-accent-soft); border-radius: 5px; }
+        .rm-row.changed .top .name { color: var(--rmp-text); }
+        .rm-row.changed .top .name::before { background: var(--rmp-accent); }
+        .rm-row.race { display: inline-flex; width: calc(50% - .35rem); vertical-align: top; margin-right: .4rem; min-height: 4.4rem; align-items: center; background: var(--rmp-surface); border-color: var(--rmp-border); }
+        .rm-row.race .top { width: 100%; margin: 0; flex-direction: column; align-items: flex-start; gap: .42rem; }
+        .rm-row.race.active-race { background: var(--rmp-accent-soft); border: 1px solid var(--rmp-border-strong); }
+        .race-badge { color: var(--rmp-text-dim); border-color: var(--rmp-border); }
+        .active-race .race-badge { color: var(--rmp-success); border-color: var(--rmp-success); }
+        .part-name { color: var(--rmp-text-muted); padding: .35rem 0 0; font-size: .72rem; }
+        .group-header { color: var(--rmp-accent); border-color: var(--rmp-border-strong); margin-top: 1rem; }
+        input[type="range"]::-webkit-slider-runnable-track { height: 8px; border-radius: 6px; background: linear-gradient(90deg, var(--rmp-accent) var(--fill, 50%), var(--rmp-track) var(--fill, 50%)); }
+        input[type="range"]::-webkit-slider-thumb { width: 1.2rem; height: 1.2rem; margin-top: calc(4px - .6rem); background: var(--rmp-accent-strong); border: 3px solid var(--rmp-bg); box-shadow: 0 0 0 1px var(--rmp-accent); }
+        .stepper, .sex-control { display: flex; align-items: center; gap: .45rem; }
+        .stepper { padding-top: .12rem; }
+        .stepper button, .sex-control button { border: 1px solid var(--rmp-border); background: var(--rmp-surface); color: var(--rmp-text); cursor: pointer; border-radius: 8px; min-height: 2.2rem; }
+        .stepper button { width: 2.4rem; font-size: 1.05rem; }
+        .stepper button:hover, .sex-control button:hover { background: var(--rmp-surface-hi); border-color: var(--rmp-border-strong); }
+        .stepper .step-value { min-width: 5.5rem; text-align: center; color: var(--rmp-accent-strong); font-variant-numeric: tabular-nums; font-size: .82rem; }
+        .sex-control { padding-top: .15rem; }
+        .sex-control button { flex: 1; font-size: 1.35rem; padding: .35rem .8rem; }
+        .sex-control button span { font-size: .7rem; margin-left: .4rem; vertical-align: .12rem; color: var(--rmp-text-muted); }
+        .sex-control button.active { background: var(--rmp-accent-soft); border-color: var(--rmp-border-strong); color: var(--rmp-accent-strong); }
+        .dd-menu, .rm-presets, .color-editor { background: rgba(18, 28, 44, .99); border-color: var(--rmp-border-strong); }
+        /* Ultralight can lose inherited text color in dynamically opened menus.
+           Give every layer an explicit opaque foreground/background pair. */
+        .dd-menu .dd-item { display: block; color: #eef5ff !important; background: rgba(18, 28, 44, .99); min-height: 2.1rem; line-height: 1.45rem; }
+        .dd-menu .dd-item:hover, .paint-tex button:hover { background: var(--rmp-accent-soft); color: #ffffff !important; }
+
+        /* ---------- Hearthfire / guild hall skin ----------
+           A chargen menu belongs to the world: old bronze, dark walnut and
+           parchment, not a translucent desktop window. */
+        :root {
+            --rmp-bg: rgba(25, 17, 14, .94);
+            --rmp-surface: rgba(49, 33, 25, .94);
+            --rmp-surface-hi: rgba(76, 49, 31, .98);
+            --rmp-accent: #d4ad62;
+            --rmp-accent-strong: #f1d79a;
+            --rmp-accent-soft: rgba(212, 173, 98, .18);
+            --rmp-text: #f4e8cf;
+            --rmp-text-muted: #c5ae86;
+            --rmp-text-dim: #8e7656;
+            --rmp-success: #9ccf8a;
+            --rmp-danger: #e78569;
+            --rmp-border: rgba(226, 188, 114, .32);
+            --rmp-border-strong: rgba(241, 215, 154, .75);
+            --rmp-track: rgba(102, 74, 46, .86);
+        }
+        .rm-panel { width: 680px; min-width: 520px; max-width: 900px; background: linear-gradient(105deg, rgba(31,20,15,.97), rgba(15,12,11,.93)); border: 2px solid var(--rmp-border); border-radius: 4px; box-shadow: 0 0 0 4px rgba(15,10,8,.55), 0 18px 50px rgba(0,0,0,.5); }
+        .rm-panel::before, .rm-panel::after { content:""; position:absolute; left:.45rem; right:.45rem; height:7px; pointer-events:none; z-index:5; opacity:.8; background: repeating-linear-gradient(90deg, transparent 0 12px, rgba(212,173,98,.45) 13px 14px, transparent 15px 27px); }
+        .rm-panel::before { top:.38rem; } .rm-panel::after { bottom:.38rem; }
+        .rm-titlebar { min-height:4.6rem; padding:1rem 1.25rem .9rem; border-bottom:1px solid var(--rmp-border); background: linear-gradient(90deg, rgba(116,74,35,.48), rgba(46,29,20,.16) 70%), repeating-linear-gradient(135deg, transparent 0 8px, rgba(218,178,104,.045) 9px 10px); }
+        .rm-titlebar h1 { color:var(--rmp-accent-strong); font-family: Georgia, "Times New Roman", serif; font-size:1.35rem; letter-spacing:.16em; text-shadow:0 1px 0 #160d08; }
+        .rm-head { margin:.7rem .8rem .45rem; padding:.8rem .9rem; border:1px solid var(--rmp-border); background:rgba(54,34,24,.58); position:relative; }
+        .rm-head::before, .rm-navigation-frame::before { content:"✦"; position:absolute; color:var(--rmp-accent); left:50%; transform:translateX(-50%); top:-.7rem; font-size:.72rem; background:var(--rmp-bg); padding:0 .6rem; }
+        .rm-name-row button.accent, .preset-save-row button { background:linear-gradient(#e5c67e,#9d6f35); color:#29170c; border-color:#f5db9d; text-shadow:0 1px rgba(255,255,255,.3); }
+        .rm-scene-row { gap:.42rem; } .rm-scene-row button, .rm-controls button.toggle, .rm-foot button, .collapse-btn { background:linear-gradient(180deg, rgba(98,67,43,.95), rgba(46,29,22,.98)); color:var(--rmp-text); border-color:var(--rmp-border); border-radius:3px; }
+        .rm-scene-row button.active, .rm-controls button.toggle.active { background:linear-gradient(180deg, #846033, #523519); color:var(--rmp-accent-strong); border-color:var(--rmp-border-strong); }
+        .rm-navigation-frame { position:relative; margin:.4rem .8rem .65rem; border:1px solid var(--rmp-border); background:rgba(46,29,21,.72); flex:0 0 auto; }
+        .rm-cats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:.38rem; overflow:visible; padding:.8rem .75rem .6rem; }
+        .rm-cats .chip { justify-content:flex-start; min-width:0; min-height:2.55rem; padding:.38rem .5rem; color:var(--rmp-text-muted); border:1px solid rgba(212,173,98,.13); border-radius:2px; font-size:.72rem; text-align:left; }
+        .rm-cats .chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .rm-cats .chip svg { flex:0 0 auto; width:1.1rem; height:1.1rem; }
+        .rm-cats .chip:hover { background:rgba(129,87,43,.35); color:var(--rmp-accent-strong); border-color:var(--rmp-border); }
+        .rm-cats .chip.active { background:linear-gradient(90deg, rgba(164,111,48,.55), rgba(91,56,26,.55)); color:var(--rmp-accent-strong); border-color:var(--rmp-border-strong); }
+        .rm-controls { padding:.1rem .75rem .65rem; border:0; } .rm-controls input[type="text"], .rm-name-row input, .preset-save-row input { background:rgba(20,13,10,.78); border-color:var(--rmp-border); color:var(--rmp-text); }
+        .rm-list { padding:.45rem .8rem 1rem; } .rm-row { background:rgba(55,36,25,.28); border-radius:2px; border-color:rgba(212,173,98,.1); }
+        .rm-row:hover { background:rgba(108,71,37,.4); border-color:var(--rmp-border); }
+        .rm-row.race { width:calc(50% - .3rem); min-height:5.25rem; margin:.18rem .18rem .18rem 0; padding:.5rem .65rem; background:linear-gradient(110deg, rgba(90,57,31,.72), rgba(37,25,19,.83)); border:1px solid rgba(212,173,98,.38); border-radius:2px; }
+        .rm-row.race .top { flex-direction:row; align-items:center; gap:.62rem; } .rm-row.race .name { font-family:Georgia, "Times New Roman", serif; font-size:1rem; color:var(--rmp-text); }
+        .rm-row.race.active-race { background:linear-gradient(110deg, rgba(134,95,43,.8), rgba(58,38,22,.9)); border-color:var(--rmp-accent-strong); box-shadow:inset 3px 0 var(--rmp-accent); }
+        .race-crest { width:3.25rem; height:3.25rem; flex:0 0 auto; padding:.22rem; color:var(--rmp-accent-strong); border:1px solid currentColor; background:rgba(24,14,9,.6); clip-path:polygon(50% 0, 94% 15%, 88% 73%, 50% 100%, 12% 73%, 6% 15%); }
+        .race-crest svg { width:100%; height:100%; fill:none; stroke:currentColor; stroke-width:1.6; }
+        .race-badge { margin-left:auto; color:var(--rmp-text-muted); border-color:var(--rmp-border); } .active-race .race-badge { color:var(--rmp-success); border-color:var(--rmp-success); }
+        .sex-control button:first-child { border-color:rgba(111,190,235,.75); color:#bde8ff; background:linear-gradient(180deg, rgba(46,112,153,.65), rgba(21,49,81,.82)); }
+        .sex-control button:last-child { border-color:rgba(237,144,180,.72); color:#ffd1e1; background:linear-gradient(180deg, rgba(146,66,99,.65), rgba(80,29,53,.85)); }
+        .sex-control button:first-child.active { box-shadow:inset 0 0 0 1px #9cddff, 0 0 8px rgba(99,191,240,.4); }
+        .sex-control button:last-child.active { box-shadow:inset 0 0 0 1px #ffc1d9, 0 0 8px rgba(241,121,169,.35); }
+        input[type="range"]::-webkit-slider-runnable-track { background:linear-gradient(90deg, var(--rmp-accent) var(--fill,50%), var(--rmp-track) var(--fill,50%)); }
+        .dd-menu, .rm-presets, .color-editor { background:rgba(45,28,20,.99); border-color:var(--rmp-border-strong); } .dd-menu .dd-item { color:var(--rmp-text) !important; background:rgba(45,28,20,.99); }
+        .rm-section-toggle { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:2.15rem; padding:.35rem .1rem .45rem; border:0; border-bottom:1px solid rgba(226,188,114,.22); background:transparent; color:var(--rmp-accent-strong); font:600 .78rem Georgia, "Times New Roman", serif; letter-spacing:.1em; text-align:left; cursor:pointer; text-transform:uppercase; }
+        .rm-section-toggle:hover { color:#fff0c5; } .rm-section-toggle .section-state { font-family:"Segoe UI",sans-serif; font-size:1rem; letter-spacing:0; }
+        .rm-head.collapsed, .rm-navigation-frame.collapsed { padding-top:.25rem; padding-bottom:.25rem; min-height:2.65rem; }
+        .rm-head.collapsed .rm-head-content, .rm-navigation-frame.collapsed .rm-navigation-content { display:none; }
+        .rm-head.collapsed .rm-section-toggle, .rm-navigation-frame.collapsed .rm-section-toggle { border-bottom:0; }
+        .rm-head.collapsed::before, .rm-navigation-frame.collapsed::before { display:none; }
+        .rm-section-toggle { justify-content:center; text-align:center; position:relative; }
+        .rm-section-toggle .section-state { position:absolute; right:.15rem; }
+        .header-presets-btn { flex:0 0 auto; min-height:2.55rem; padding:.38rem 1rem .38rem .85rem; border:1px solid #f6dc96; border-radius:3px; background:linear-gradient(135deg, #6c351c 0%, #c98b3e 47%, #74401f 100%); color:#fff0c3; font:700 .86rem Georgia, "Times New Roman", serif; letter-spacing:.08em; cursor:pointer; text-shadow:0 1px 2px #231109; box-shadow:inset 0 1px rgba(255,244,196,.48), 0 2px 7px rgba(0,0,0,.38); }
+        .header-presets-btn::before { content:"✦"; display:inline-block; margin-right:.42rem; color:#ffe8a0; font-size:1.08em; text-shadow:0 0 7px #f4c66d; }
+        .header-presets-btn:hover, .header-presets-btn.active { background:linear-gradient(135deg, #8c4823 0%, #e1aa55 47%, #8d4e25 100%); box-shadow:inset 0 1px rgba(255,249,213,.7), 0 0 14px rgba(234,190,96,.54); transform:translateY(-1px); }
+        .header-presets { margin:0 .8rem .55rem; padding:.85rem; border:1px solid var(--rmp-border-strong); border-top:0; border-radius:0 0 3px 3px; background:rgba(45,28,20,.99); box-shadow:0 10px 18px rgba(0,0,0,.26); }
+        .header-presets .preset-list { max-height:14rem; } .header-presets .preset-row { min-height:2rem; font-size:.88rem; }
+        .rm-panel.collapsed .header-presets { display:none !important; }
+        .body-preset-export { margin-top:.8rem; padding:.8rem; border:1px solid rgba(226,188,114,.34); border-radius:3px; background:rgba(27,16,12,.6); color:var(--rmp-text-muted); }
+        .body-preset-export .body-preset-title { display:block; margin-bottom:.5rem; color:var(--rmp-accent-strong); font:700 .8rem Georgia, "Times New Roman", serif; letter-spacing:.08em; text-transform:uppercase; }
+        .body-preset-types { display:flex; gap:.45rem; margin-bottom:.55rem; }
+        .body-preset-types button { flex:1; min-height:2.15rem; padding:.3rem .65rem; border:1px solid var(--rmp-border); border-radius:3px; background:rgba(92,58,31,.85); color:var(--rmp-text); cursor:pointer; }
+        .body-preset-types button:hover, .body-preset-types button.active { border-color:#f1cd7e; background:linear-gradient(180deg,#986333,#57341d); color:#fff0bd; box-shadow:inset 0 1px rgba(255,236,166,.2); }
+        .body-preset-export input { width:100%; box-sizing:border-box; min-height:2.3rem; padding:.3rem .55rem; border:1px solid var(--rmp-border); border-radius:3px; background:rgba(20,13,10,.78); color:var(--rmp-text); }
+        .body-preset-export .body-preset-save { width:100%; min-height:2.35rem; margin-top:.45rem; border:1px solid #f5db9d; border-radius:3px; background:linear-gradient(#e5c67e,#9d6f35); color:#29170c; font-weight:700; cursor:pointer; text-shadow:0 1px rgba(255,255,255,.3); }
+        .body-preset-export .body-preset-save:hover { background:linear-gradient(#f6df9f,#b88441); }
+        .rm-foot { border-color: var(--rmp-border); }
+    </style>
+</head>
+<body>
+    <div class="rm-panel" id="rm-panel">
+        <div class="rm-resizer" id="rm-resizer" title="Drag to resize"></div>
+        <div class="rm-titlebar" id="panel-drag">
+            <div class="tb-text">
+                <h1>RaceMenu Prisma</h1>
+                <div class="sub" id="rm-sub">waiting for data…</div>
+            </div>
+            <button id="presets-btn" class="header-presets-btn" title="Save and load RaceMenu presets">Presets</button>
+            <button id="collapse-btn" class="collapse-btn" title="Collapse to one line">▾</button>
+        </div>
+        <div class="rm-presets header-presets" id="preset-panel">
+            <div class="preset-list" id="preset-list"></div>
+            <div class="preset-save-row">
+                <input type="text" id="preset-name" placeholder="Preset name" />
+                <button id="preset-save">Save preset</button>
+            </div>
+            <div class="preset-status" id="preset-status"></div>
+            <div class="body-preset-export">
+                <span class="body-preset-title">BodySlide preset</span>
+                <div class="body-preset-types" role="group" aria-label="BodySlide body type">
+                    <button id="export-cbbe" class="active" type="button">CBBE 3BA</button>
+                    <button id="export-himbo" type="button">HIMBO</button>
+                </div>
+                <input type="text" id="body-preset-name" placeholder="BodySlide preset name" />
+                <button id="body-preset-save" class="body-preset-save" type="button">Save BodySlide preset</button>
+            </div>
+            <div class="preset-status" id="body-preset-status"></div>
+        </div>
+        <div class="rm-body" id="rm-body">
+            <div class="rm-head">
+                <button class="rm-section-toggle" id="tools-collapse" type="button"><span>Character &amp; Scene</span><span class="section-state">▾</span></button>
+                <div class="rm-head-content">
+                <div class="rm-name-row">
+                    <input type="text" id="rm-name" placeholder="Character name" />
+                    <button id="done-btn" class="accent">Done</button>
+                </div>
+                <div class="rm-scene-row">
+                    <button id="rot-left" title="Hold to rotate left">⟲</button>
+                    <button id="rot-right" title="Hold to rotate right">⟳</button>
+                    <button id="zoom-btn" title="Toggle camera zoom (Z)">◉ Zoom: face</button>
+                    <button id="light-btn" title="Toggle character light (L)">☼ Light: on</button>
+                    <button id="freeze-btn" title="Return to a neutral standing pose">✦ Neutral</button>
+                    <button id="undress-btn" title="Unequip / re-equip armor">♙ Undress</button>
+                    <span class="spacer"></span>
+                    <button id="scale-down" title="Smaller UI">A−</button>
+                    <span class="scale-pct" id="scale-pct">100%</span>
+                    <button id="scale-up" title="Larger UI">A+</button>
+                </div>
+                <div class="rm-scene-row">
+                    <button id="pose-btn" title="Play a pose animation">Pose ▾</button>
+                    <button id="pose-stop" title="Back to default idle">Stop pose</button>
+                    <span class="spacer"></span>
+                    <span class="scale-pct" id="pose-status"></span>
+                </div>
+                <div class="dd-menu" id="pose-menu"></div>
+                </div>
+            </div>
+            <div class="rm-navigation-frame">
+                <button class="rm-section-toggle" id="navigation-collapse" type="button"><span>Appearance Categories</span><span class="section-state">▾</span></button>
+                <div class="rm-navigation-content">
+                    <div class="rm-cats" id="rm-cats"></div>
+                <div class="rm-controls">
+                    <input type="text" id="rm-search" placeholder="Search sliders…" />
+                    <button id="changed-toggle" class="toggle" title="Show only changed sliders">Changed</button>
+                    <button id="overdrive-toggle" class="toggle" title="Allow exact numeric input beyond a morph's normal range">Overdrive</button>
+                    <button id="sex-toggle" class="toggle active" title="Hide sliders for the other body (HIMBO/3BA/UBE keywords)">♀♂</button>
+                </div>
+                </div>
+            </div>
+            <div class="rm-list" id="rm-list"></div>
+            <div class="rm-foot">
+                <span id="rm-count"></span>
+                <span>
+                    <button id="undo-btn" title="Undo (Ctrl+Z)">↶</button>
+                    <button id="redo-btn" title="Redo (Ctrl+Y)">↷</button>
+                    <button id="reload-btn" title="Request a fresh list of sliders and categories">Refresh</button>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="tex-tooltip" id="tex-tooltip"></div>
+
+    <script>
+        const state = {
+            data: null,
+            rows: [],
+            rowByKey: new Map(),
+            rowBySliderID: new Map(),
+            showChangedOnly: false,
+            recentColors: [],
+            playerRace: "",
+            playerSex: "unknown",
+            zoomFace: true,
+            lightOn: true,
+            undressed: false,
+            activeCat: null,     // null = all, >= 0 = index into categories
+            sexFilter: true,
+            overdrive: false,
+            bodySlideKind: "cbbe",
+        };
+        const history = { past: [], future: [] };
+        const HISTORY_CAP = 200;
+
+        const $ = (id) => document.getElementById(id);
+
+        // localStorage may be unavailable in Ultralight — degrade silently.
+        const store = {
+            get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (_) { return d; } },
+            set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} },
+        };
+
+        state.sexFilter = store.get("rmpSexFilter", "1") === "1";
+        state.overdrive = store.get("rmpOverdrive", "0") === "1";
+
+        const isTyping = () => {
+            const el = document.activeElement;
+            return el && (el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA");
+        };
+
+        // Stable identity for an entry across data re-pushes (the C++ side
+        // re-sends the whole list whenever skee injects more sliders).
+        // tintType/tintIndex disambiguate paint slots, which all share the
+        // text "default" until a texture is picked.
+        const entryKey = (e) =>
+            e.type + "|" + e.sliderID + "|" + e.callbackName + "|" + e.text + "|" + e.tintType + "|" + e.tintIndex;
+
+        // Localization safety net.  Third-party ECE/SKEE sliders often bypass
+        // the game's translator and arrive as keys such as "$ECE_Brow_Height"
+        // or "ECE_Morphs_BreastSize".  The bridge identity stays untouched;
+        // only the visible label is humanized here.
+        function displayName(text) {
+            let label = String(text || "").trim();
+            if (!label) return "Unnamed option";
+            label = label.replace(/^\$+/, "");
+            label = label.replace(/^(?:(?:rm|rsm|racemenu|ece)(?:[_\s:.-]+(?:sliders|slider|morphs|morph|custom))?)[_\s:.-]*/i, "");
+            label = label.replace(/^\$+/, "");
+            // CamelCase and separators are implementation syntax, not UI copy.
+            label = label.replace(/([a-z\d])([A-Z])/g, "$1 $2");
+            label = label.replace(/[_]+/g, " ").replace(/\s{2,}/g, " ").trim();
+            return label || "Unnamed option";
+        }
+
+        const visibleName = (entry) => displayName(entry.text);
+
+        // ---------- drag helper (pointer events with mouse fallback) ----------
+
+        function onDragStart(el, handler) {
+            const start = (ev) => {
+                if (ev.button !== undefined && ev.button !== 0) return;
+                handler(ev);
+            };
+            if (window.PointerEvent) {
+                el.addEventListener("pointerdown", start);
+            } else {
+                el.addEventListener("mousedown", start);
+            }
+        }
+
+        function trackDrag(onMove, onEnd) {
+            const moveName = window.PointerEvent ? "pointermove" : "mousemove";
+            const upName = window.PointerEvent ? "pointerup" : "mouseup";
+            const move = (mv) => onMove(mv);
+            const up = () => {
+                document.removeEventListener(moveName, move);
+                document.removeEventListener(upName, up);
+                if (onEnd) onEnd();
+            };
+            document.addEventListener(moveName, move);
+            document.addEventListener(upName, up);
+        }
+
+        // ---------- UI scale ----------
+
+        // Base is intentionally bigger than a typical 16px default — this is
+        // a full-screen chargen overlay, not a dense desktop app, so 100%
+        // should already read comfortably from a couch/gamepad distance.
+        const BASE_FONT_PX = 20;
+        let uiScale = parseFloat(store.get("rmpScale", "1")) || 1;
+
+        function applyScale() {
+            uiScale = Math.min(1.6, Math.max(0.85, uiScale));
+            document.documentElement.style.fontSize = (BASE_FONT_PX * uiScale) + "px";
+            $("scale-pct").textContent = Math.round(uiScale * 100) + "%";
+            store.set("rmpScale", String(uiScale));
+        }
+
+        $("scale-down").addEventListener("click", () => { uiScale -= 0.05; applyScale(); });
+        $("scale-up").addEventListener("click", () => { uiScale += 0.05; applyScale(); });
+        applyScale();
+
+        // Both fixed top sections can be folded to one title row without
+        // losing the scrollable list below. Their state is remembered between
+        // game sessions, just like panel position and scale.
+        function setupSectionCollapse(buttonId, sectionSelector, storeKey) {
+            const button = $(buttonId);
+            const section = document.querySelector(sectionSelector);
+            const set = (collapsed) => {
+                section.classList.toggle("collapsed", collapsed);
+                button.querySelector(".section-state").textContent = collapsed ? "▸" : "▾";
+                button.title = collapsed ? "Expand section" : "Collapse to one row";
+                store.set(storeKey, collapsed ? "1" : "0");
+            };
+            button.addEventListener("click", () => set(!section.classList.contains("collapsed")));
+            set(store.get(storeKey, "0") === "1");
+        }
+        setupSectionCollapse("tools-collapse", ".rm-head", "rmpToolsCollapsed");
+        setupSectionCollapse("navigation-collapse", ".rm-navigation-frame", "rmpNavigationCollapsed");
+
+        // ---------- collapse to one line ----------
+
+        function setCollapsed(collapsed) {
+            $("rm-panel").classList.toggle("collapsed", collapsed);
+            $("collapse-btn").textContent = collapsed ? "▸" : "▾";
+            $("collapse-btn").title = collapsed ? "Expand" : "Collapse to one line";
+            store.set("rmpCollapsed", collapsed ? "1" : "0");
+        }
+
+        $("collapse-btn").addEventListener("click", () => {
+            setCollapsed(!$("rm-panel").classList.contains("collapsed"));
+        });
+        setCollapsed(store.get("rmpCollapsed", "0") === "1");
+
+        // ---------- movable & resizable panels ----------
+
+        const isInteractive = (el) => el.tagName === "BUTTON" || el.tagName === "INPUT" || el.tagName === "SELECT";
+
+        // Any panel becomes draggable by its handle; position is persisted.
+        function makeMovable(panel, handle, storeKey) {
+            const saved = store.get(storeKey, "");
+            if (saved) {
+                const [x, y] = saved.split(",").map(Number);
+                if (!isNaN(x) && !isNaN(y)) placePanel(panel, x, y);
+            }
+
+            onDragStart(handle, (ev) => {
+                if (isInteractive(ev.target)) return;
+                ev.preventDefault();
+                const rect = panel.getBoundingClientRect();
+                const offX = ev.clientX - rect.left;
+                const offY = ev.clientY - rect.top;
+                // Freeze current height for the slider panel (it's normally
+                // stretched between top:16 and bottom:16) — but not while
+                // collapsed, where CSS already forces an intrinsic height
+                // and freezing it here would wrongly cap the panel's height
+                // after the next expand.
+                if (panel.id === "rm-panel" && !panel.classList.contains("collapsed")) {
+                    panel.style.height = rect.height + "px";
+                }
+                trackDrag((mv) => {
+                    placePanel(panel, mv.clientX - offX, mv.clientY - offY);
+                }, () => {
+                    const r = panel.getBoundingClientRect();
+                    store.set(storeKey, Math.round(r.left) + "," + Math.round(r.top));
+                });
+            });
+
+            // Double-click the handle to snap back to the default dock.
+            handle.addEventListener("dblclick", (ev) => {
+                if (isInteractive(ev.target)) return;
+                panel.style.left = "";
+                panel.style.top = "";
+                panel.style.right = "";
+                panel.style.bottom = "";
+                panel.style.height = "";
+                panel.style.maxHeight = "";
+                store.set(storeKey, "");
+            });
+        }
+
+        // Keeps the panel fully on-screen — it can be dragged right up to an
+        // edge but never past it, so it's never lost off the visible area.
+        function placePanel(panel, x, y) {
+            const w = panel.offsetWidth;
+            const h = panel.offsetHeight;
+            x = Math.min(Math.max(window.innerWidth - w, 0), Math.max(0, x));
+            y = Math.min(Math.max(window.innerHeight - h, 0), Math.max(0, y));
+            panel.style.left = x + "px";
+            panel.style.top = y + "px";
+            panel.style.right = "auto";
+            panel.style.bottom = "auto";
+            // Undocking replaces the top+bottom CSS anchor with an explicit
+            // top, which leaves the height content-driven — without a cap the
+            // panel can grow past the bottom edge and the slider list loses
+            // its constraint, killing its scroll. Cap it to the space below.
+            panel.style.maxHeight = Math.max(120, window.innerHeight - y - 16) + "px";
+        }
+
+        // Re-clamp on resize so a viewport shrink (or alt-tab back from a
+        // different resolution) can't leave the panel stranded off-screen.
+        window.addEventListener("resize", () => {
+            const panel = $("rm-panel");
+            if (panel.style.left) {
+                placePanel(panel, parseFloat(panel.style.left), parseFloat(panel.style.top));
+            }
+        });
+
+        // v3 key: the redesigned panel has a different width and dock.
+        // max-height fix — old values restored the panel on the right with an
+        // unconstrained height (bottom off-screen, dead scroll).
+        makeMovable($("rm-panel"), $("panel-drag"), "rmpPanelPos3");
+
+        (() => {
+            const panel = $("rm-panel");
+            const saved = parseInt(store.get("rmpWidth", ""), 10);
+            if (saved) panel.style.width = Math.min(780, Math.max(380, saved)) + "px";
+
+            const grip = $("rm-resizer");
+            onDragStart(grip, (ev) => {
+                ev.preventDefault();
+                const rect = panel.getBoundingClientRect();
+                trackDrag((mv) => {
+                    const w = Math.min(780, Math.max(380, rect.right - mv.clientX));
+                    panel.style.width = w + "px";
+                    if (panel.style.left) {
+                        panel.style.left = (rect.right - w) + "px";
+                    }
+                }, () => {
+                    store.set("rmpWidth", String(panel.offsetWidth));
+                });
+            });
+        })();
+
+        // ---------- character rotation / camera / body ----------
+
+        // Dragging on the empty screen area (outside the panels) rotates the
+        // player. Deltas are batched and sent as degrees to C++ (rmpRotate).
+        const DEG_PER_PX = 0.4;
+        let rotAccum = 0;
+        let rotScheduled = false;
+
+        function queueRotate(dx) {
+            rotAccum += dx;
+            if (rotScheduled) return;
+            rotScheduled = true;
+            // setTimeout, not requestAnimationFrame — rAF is unreliable in
+            // Ultralight (and in headless testing) when nothing repaints.
+            setTimeout(() => {
+                rotScheduled = false;
+                if (rotAccum && window.rmpRotate) {
+                    window.rmpRotate(String(rotAccum * DEG_PER_PX));
+                }
+                rotAccum = 0;
+            }, 16);
+        }
+
+        onDragStart(document.body, (ev) => {
+            if (ev.target !== document.body) return;
+            ev.preventDefault();
+            document.body.classList.add("rotating");
+            let lastX = ev.clientX;
+            trackDrag((mv) => {
+                queueRotate(mv.clientX - lastX);
+                lastX = mv.clientX;
+            }, () => {
+                document.body.classList.remove("rotating");
+            });
+        });
+
+        // Hold-to-rotate buttons — the reliable path if background dragging
+        // ever fails to receive events.
+        function holdRotate(btn, dir) {
+            let timer = null;
+            const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+            onDragStart(btn, (ev) => {
+                ev.preventDefault();
+                stop();
+                queueRotate(dir * 10);
+                timer = setInterval(() => queueRotate(dir * 10), 30);
+                trackDrag(() => {}, stop);
+            });
+            btn.addEventListener("mouseleave", stop);
+        }
+
+        holdRotate($("rot-left"), -1);
+        holdRotate($("rot-right"), 1);
+
+        function toggleZoom() {
+            state.zoomFace = !state.zoomFace;
+            if (window.rmpZoom) window.rmpZoom(state.zoomFace ? "1" : "0");
+            $("zoom-btn").textContent = "◉ Zoom: " + (state.zoomFace ? "face" : "body");
+        }
+
+        function toggleLight() {
+            state.lightOn = !state.lightOn;
+            window.rmpModEvent("RSM_ToggleLight||" + (state.lightOn ? 1 : 0));
+            $("light-btn").textContent = "☼ Light: " + (state.lightOn ? "on" : "off");
+        }
+
+        function toggleUndress() {
+            state.undressed = !state.undressed;
+            if (window.rmpUndress) window.rmpUndress(state.undressed ? "1" : "0");
+            $("undress-btn").textContent = state.undressed ? "♙ Dress" : "♙ Undress";
+            $("undress-btn").classList.toggle("active", state.undressed);
+        }
+
+        // RaceMenu's own default-idle event is safer than trying to suspend
+        // the engine's preview animation graph. It gives a clean, neutral
+        // hands-down stance without leaving the player or world paused.
+        function setNeutralPose() {
+            if (window.rmpPose) window.rmpPose("IdleForceDefaultState");
+            $("pose-status").textContent = "…";
+        }
+
+        $("zoom-btn").addEventListener("click", toggleZoom);
+        $("light-btn").addEventListener("click", toggleLight);
+        $("undress-btn").addEventListener("click", toggleUndress);
+        $("freeze-btn").addEventListener("click", setNeutralPose);
+
+        const POSES = [
+            ["IdleWave", "Wave"],
+            ["IdleApplaud2", "Applaud"],
+            ["IdleLaugh", "Laugh"],
+            ["IdleCower", "Cower"],
+            ["IdleCiceroDance1", "Dance"],
+            ["IdleHandsBehindBack", "Hands behind back"],
+            ["IdleGetAttention", "Get attention"],
+            ["IdleBook_Reading", "Read book"],
+        ];
+
+        POSES.forEach(([ev, label]) => {
+            const item = document.createElement("div");
+            item.className = "dd-item";
+            item.textContent = label;
+            item.addEventListener("click", () => {
+                if (window.rmpPose) window.rmpPose(ev);
+                $("pose-status").textContent = "…";
+                $("pose-menu").classList.remove("open");
+            });
+            $("pose-menu").appendChild(item);
+        });
+
+        $("pose-btn").addEventListener("click", () => {
+            $("pose-menu").classList.toggle("open");
+        });
+        $("pose-stop").addEventListener("click", () => {
+            if (window.rmpPose) window.rmpPose("IdleForceDefaultState");
+            $("pose-status").textContent = "";
+            $("pose-menu").classList.remove("open");
+        });
+
+        window.rmpPoseResult = (ok) => {
+            $("pose-status").textContent = ok ? "" : "pose not available";
+        };
+
+        document.addEventListener("keydown", (ev) => {
+            // Developer console: hand focus back and open it.
+            if (ev.code === "Backquote" || ev.key === "`" || ev.key === "~" || ev.key === "ё" || ev.key === "Ё") {
+                if (!isTyping() && window.rmpConsole) {
+                    ev.preventDefault();
+                    window.rmpConsole("");
+                }
+                return;
+            }
+            if (isTyping()) return;
+            const k = ev.key.toLowerCase();
+            if (k === "z" && !ev.ctrlKey && !ev.metaKey) toggleZoom();
+            else if (k === "l") toggleLight();
+            else if (ev.key === "ArrowLeft") queueRotate(-14);
+            else if (ev.key === "ArrowRight") queueRotate(14);
+        });
+
+        // ---------- presets ----------
+
+        $("presets-btn").addEventListener("click", () => {
+            const panel = $("preset-panel");
+            const open = panel.classList.toggle("open");
+            $("presets-btn").classList.toggle("active", open);
+            if (open && window.rmpListPresets) {
+                $("preset-status").textContent = "loading list…";
+                window.rmpListPresets("");
+            }
+        });
+
+        // name -> { el, loaded, pendingMods } — one accordion entry per preset.
+        state.presetInfoEls = new Map();
+        let openPresetInfo = null;
+
+        window.rmpPresets = (files) => {
+            const list = $("preset-list");
+            list.innerHTML = "";
+            state.presetInfoEls = new Map();
+            openPresetInfo = null;
+            $("preset-status").textContent = files.length ? "" : "no presets found";
+            files.forEach((f) => {
+                const row = document.createElement("div");
+                row.className = "preset-row";
+                const name = document.createElement("span");
+                name.textContent = f;
+
+                const btns = document.createElement("span");
+                btns.style.display = "flex";
+                btns.style.gap = "4px";
+                const infoBtn = document.createElement("button");
+                infoBtn.textContent = "ⓘ";
+                infoBtn.title = "Show mods / head parts used, and what's missing";
+                const loadBtn = document.createElement("button");
+                loadBtn.textContent = "Load";
+                loadBtn.addEventListener("click", () => {
+                    $("preset-status").textContent = "loading " + f + "…";
+                    window.rmpLoadPreset(f);
+                });
+                btns.appendChild(infoBtn);
+                btns.appendChild(loadBtn);
+                row.appendChild(name);
+                row.appendChild(btns);
+                list.appendChild(row);
+
+                const infoEl = document.createElement("div");
+                infoEl.className = "preset-info";
+                infoEl.style.display = "none";
+                list.appendChild(infoEl);
+                const entry = { el: infoEl, loaded: false, pendingMods: false };
+                state.presetInfoEls.set(f, entry);
+
+                infoBtn.addEventListener("click", () => {
+                    if (openPresetInfo && openPresetInfo !== f) {
+                        const prev = state.presetInfoEls.get(openPresetInfo);
+                        if (prev) prev.el.style.display = "none";
+                    }
+                    const willOpen = infoEl.style.display === "none";
+                    infoEl.style.display = willOpen ? "" : "none";
+                    openPresetInfo = willOpen ? f : null;
+                    if (willOpen && !entry.loaded) {
+                        infoEl.textContent = "loading…";
+                        window.rmpReadPresetFile(f);
+                    }
+                });
+            });
+        };
+
+        const HEAD_PART_TYPES = ["Misc", "Face", "Eyes", "Hair", "Facial hair", "Scar", "Eyebrows"];
+
+        // ---------- texture hover-preview tooltip ----------
+        // DDS can't be shown by a browser directly; the C++ side decodes a
+        // best-effort thumbnail (uncompressed/BC1/BC3 only) and replies with
+        // a data: URI, or null if the format isn't one it understands.
+
+        const texCache = new Map();  // path -> data URI | null (no preview) | undefined (requested, pending)
+        const texTooltip = $("tex-tooltip");
+        let hoveredTexPath = null;
+
+        function renderTexTooltip(path, x, y) {
+            texTooltip.style.left = (x + 18) + "px";
+            texTooltip.style.top = (y + 18) + "px";
+            texTooltip.style.display = "block";
+            texTooltip.innerHTML = "";
+
+            const cached = texCache.get(path);
+            if (cached === null) {
+                const msg = document.createElement("div");
+                msg.className = "tt-loading";
+                msg.textContent = "no preview available";
+                texTooltip.appendChild(msg);
+            } else if (cached) {
+                const img = document.createElement("img");
+                img.src = cached;
+                texTooltip.appendChild(img);
+            } else {
+                const msg = document.createElement("div");
+                msg.className = "tt-loading";
+                msg.textContent = "loading preview…";
+                texTooltip.appendChild(msg);
+                if (!texCache.has(path) && window.rmpGetTexturePreview) {
+                    texCache.set(path, undefined);
+                    window.rmpGetTexturePreview(path);
+                }
+            }
+
+            const label = document.createElement("div");
+            label.className = "tt-label";
+            label.textContent = path.split(/[\\\/]/).pop();
+            texTooltip.appendChild(label);
+        }
+
+        // Attach hover-to-preview behavior to any element that references a
+        // texture path (paint texture picker items, preset tint list rows).
+        function attachTexHover(el, getPath) {
+            el.addEventListener("mouseenter", (ev) => {
+                const path = getPath();
+                if (!path) return;
+                hoveredTexPath = path;
+                renderTexTooltip(path, ev.clientX, ev.clientY);
+            });
+            el.addEventListener("mousemove", (ev) => {
+                if (hoveredTexPath === getPath()) {
+                    texTooltip.style.left = (ev.clientX + 18) + "px";
+                    texTooltip.style.top = (ev.clientY + 18) + "px";
+                }
+            });
+            el.addEventListener("mouseleave", () => {
+                hoveredTexPath = null;
+                texTooltip.style.display = "none";
+            });
+        }
+
+        window.rmpTexturePreview = (path, dataUri) => {
+            texCache.set(path, dataUri || null);
+            if (hoveredTexPath === path) {
+                // Refresh in place at wherever the tooltip currently sits.
+                const x = parseFloat(texTooltip.style.left) - 18;
+                const y = parseFloat(texTooltip.style.top) - 18;
+                renderTexTooltip(path, x, y);
+            }
+        };
+
+        function piTitle(el, text) {
+            const d = document.createElement("div");
+            d.className = "pi-title";
+            d.textContent = text;
+            el.appendChild(d);
+            return d;
+        }
+
+        // data-mod carries the raw plugin name (not sanitized) so the missing-
+        // mods reply can match it exactly, independent of what's shown.
+        function piLine(el, text, modName) {
+            const d = document.createElement("div");
+            d.className = "pi-line";
+            d.textContent = text;
+            if (modName) d.dataset.mod = modName;
+            el.appendChild(d);
+            return d;
+        }
+
+        window.rmpPresetInfo = (name, data) => {
+            const entry = state.presetInfoEls.get(name);
+            if (!entry) return;
+            entry.loaded = true;
+            entry.el.innerHTML = "";
+            if (!data) {
+                piLine(entry.el, "Couldn't read this preset (binary .slot format isn't inspectable — only .jslot).");
+                return;
+            }
+
+            const mods = data.mods || [];
+            piTitle(entry.el, "Mods used (" + mods.length + ")");
+            mods.forEach((m) => piLine(entry.el, m.name, m.name));
+
+            const headParts = data.headParts || [];
+            if (headParts.length) {
+                piTitle(entry.el, "Head parts (" + headParts.length + ")");
+                headParts.forEach((hp) => {
+                    const modName = (hp.formIdentifier || "").split("|")[0] || "?";
+                    const typeName = HEAD_PART_TYPES[hp.type] || ("type " + hp.type);
+                    piLine(entry.el, typeName + " — " + modName, modName);
+                });
+            }
+
+            const tints = data.tintInfo || data.tints || [];
+            if (tints.length) {
+                piTitle(entry.el, "Tint textures (" + tints.length + ")");
+                tints.forEach((t) => {
+                    const base = (t.texture || "").split(/[\\\/]/).pop();
+                    const line = piLine(entry.el, base || "(default)");
+                    if (t.texture) attachTexHover(line, () => t.texture);
+                });
+            }
+
+            if (mods.length) {
+                entry.pendingMods = true;
+                window.rmpCheckMods(mods.map((m) => m.name).join("|"));
+            }
+        };
+
+        // Global reply (no request id) — safe because only one accordion
+        // entry is ever "pending" at a time (opening one closes the other).
+        window.rmpModsChecked = (missing) => {
+            const missingSet = new Set(missing);
+            state.presetInfoEls.forEach((entry) => {
+                if (!entry.pendingMods) return;
+                entry.pendingMods = false;
+                entry.el.querySelectorAll("[data-mod]").forEach((el) => {
+                    const isMissing = missingSet.has(el.dataset.mod);
+                    el.classList.add(isMissing ? "mod-missing" : "mod-ok");
+                    if (isMissing) el.textContent += "  (missing)";
+                });
+            });
+        };
+
+        window.rmpPresetResult = (text) => {
+            $("preset-status").textContent = text;
+            if (text === "saved" && window.rmpListPresets) {
+                window.rmpListPresets("");
+            }
+        };
+
+        window.rmpBodySlidePresetResult = (text) => {
+            $("body-preset-status").textContent = text;
+        };
+
+        $("preset-save").addEventListener("click", () => {
+            const name = $("preset-name").value.trim();
+            if (!name) {
+                $("preset-status").textContent = "enter a name first";
+                return;
+            }
+            $("preset-status").textContent = "saving…";
+            window.rmpSavePreset(name);
+        });
+
+        function selectBodySlideKind(kind) {
+            state.bodySlideKind = kind;
+            $("export-cbbe").classList.toggle("active", kind === "cbbe");
+            $("export-himbo").classList.toggle("active", kind === "himbo");
+            $("body-preset-status").textContent = "";
+        }
+
+        function exportBodySlidePreset() {
+            const kind = state.bodySlideKind;
+            const name = $("body-preset-name").value.trim();
+            const status = $("body-preset-status");
+            if (!name) {
+                status.textContent = "enter a BodySlide preset name first";
+                return;
+            }
+            if (!state.data || !state.data.entries) {
+                status.textContent = "slider data is not ready";
+                return;
+            }
+
+            const config = kind === "himbo"
+                ? { prefix: "rsm_bodymorph_himbo", label: "HIMBO" }
+                : { prefix: "ChangeMorphCBBE", label: "CBBE 3BA" };
+            const sliders = state.data.entries
+                .filter((entry) => entry.type === 2 && entry.interval < 1 &&
+                    (entry.callbackName || "").toLowerCase().startsWith(config.prefix.toLowerCase()))
+                .map((entry) => {
+                    const sliderName = entry.callbackName.slice(config.prefix.length);
+                    return /^[A-Za-z0-9_ -]+$/.test(sliderName)
+                        ? sliderName + "=" + Number(entry.position).toString()
+                        : null;
+                })
+                .filter(Boolean);
+
+            if (!sliders.length) {
+                status.textContent = config.label + " morphs are not available for this character";
+                return;
+            }
+            status.textContent = "exporting " + sliders.length + " sliders…";
+            window.rmpSaveBodySlidePreset(kind + "|" + name + "|" + sliders.join(";"));
+        }
+
+        $("export-cbbe").addEventListener("click", () => selectBodySlideKind("cbbe"));
+        $("export-himbo").addEventListener("click", () => selectBodySlideKind("himbo"));
+        $("body-preset-save").addEventListener("click", exportBodySlidePreset);
+
+        // ---------- undo/redo ----------
+
+        function pushHistory(step) {
+            history.past.push(step);
+            if (history.past.length > HISTORY_CAP) history.past.shift();
+            history.future = [];
+            updateHistoryButtons();
+        }
+
+        function applySingle(step, value) {
+            const row = state.rowByKey.get(step.key);
+            if (!row) return;
+            if (step.kind === "slider" && row.setSliderValue) {
+                row.setSliderValue(value, true);
+            } else if (step.kind === "color" && row.setColorValue) {
+                row.setColorValue(value, true);
+            }
+        }
+
+        function applyStep(step, dir) {
+            if (step.kind === "batch") {
+                step.steps.forEach((s) => applySingle(s, dir === "back" ? s.from : s.to));
+            } else {
+                applySingle(step, dir === "back" ? step.from : step.to);
+            }
+        }
+
+        function undo() {
+            const step = history.past.pop();
+            if (!step) return;
+            applyStep(step, "back");
+            history.future.push(step);
+            updateHistoryButtons();
+        }
+
+        function redo() {
+            const step = history.future.pop();
+            if (!step) return;
+            applyStep(step, "forward");
+            history.past.push(step);
+            updateHistoryButtons();
+        }
+
+        function updateHistoryButtons() {
+            $("undo-btn").textContent = "↶" + (history.past.length ? " " + history.past.length : "");
+            $("redo-btn").textContent = "↷" + (history.future.length ? " " + history.future.length : "");
+            $("undo-btn").disabled = history.past.length === 0;
+            $("redo-btn").disabled = history.future.length === 0;
+        }
+
+        document.addEventListener("keydown", (ev) => {
+            if (!(ev.ctrlKey || ev.metaKey)) return;
+            const key = ev.key.toLowerCase();
+            if (key === "z" && !ev.shiftKey) {
+                ev.preventDefault();
+                undo();
+            } else if (key === "y" || (key === "z" && ev.shiftKey)) {
+                ev.preventDefault();
+                redo();
+            }
+        });
+
+        // ---------- inbound (C++ -> JS) ----------
+
+        window.rmpUpdate = (d) => {
+            state.playerRace = d.race || "";
+            const prevSex = state.playerSex;
+            state.playerSex = d.sex || "unknown";
+            state.rows.forEach((row) => {
+                if (row.entry.type === 1 && row.refreshRaceActive) row.refreshRaceActive();
+            });
+            if (prevSex !== state.playerSex && state.data) applyFilter();
+            const nameInput = $("rm-name");
+            if (document.activeElement !== nameInput && d.name && d.name[0] !== "(") {
+                nameInput.value = d.name;
+            }
+        };
+
+        // No visible state to update here anymore (the dev status panel was
+        // removed) — kept as a no-op since C++ calls it unconditionally.
+        window.rmpSetFocus = () => {};
+
+        window.rmpMenuState = (open) => {
+            $("rm-panel").classList.toggle("open", open);
+            // The engine resets zoom/light/pose whenever the menu (re)opens.
+            state.zoomFace = true;
+            state.lightOn = true;
+            $("zoom-btn").textContent = "◉ Zoom: face";
+            $("light-btn").textContent = "☼ Light: on";
+            $("pose-status").textContent = "";
+            if (!open) {
+                state.data = null;
+                state.rows = [];
+                state.rowByKey = new Map();
+                state.rowBySliderID = new Map();
+                state.activeCat = null;
+                $("rm-list").innerHTML = "";
+                $("rm-cats").innerHTML = "";
+                $("rm-sub").textContent = "waiting for data…";
+                $("preset-panel").classList.remove("open");
+                $("presets-btn").classList.remove("active");
+                history.past = [];
+                history.future = [];
+                updateHistoryButtons();
+                if (state.undressed) {
+                    state.undressed = false;
+                    $("undress-btn").textContent = "♙ Undress";
+                    $("undress-btn").classList.remove("active");
+                }
+            }
+        };
+
+        // Dump results still land in the SKSE log file (F6); no on-screen
+        // display since the dev status panel was removed.
+        window.rmpDumpResult = () => {};
+
+        window.rmpData = (data) => {
+            // The C++ watcher re-pushes the full list whenever skee injects
+            // more sliders (or a race change rebuilds it) — carry over the
+            // "initial" values of entries we already knew so changed-markers
+            // and reset keep working, and keep undo history (steps reference
+            // entries by key, which survives a rebuild).
+            const prevInitial = new Map();
+            state.rows.forEach((row) => {
+                prevInitial.set(row.key, {
+                    position: row.entry.initialPosition,
+                    fillColor: row.entry.initialFillColor,
+                });
+            });
+
+            state.data = data;
+            if (!data) {
+                state.rows = [];
+                state.rowByKey = new Map();
+                state.rowBySliderID = new Map();
+                state.activeCat = null;
+                $("rm-list").innerHTML = "";
+                $("rm-cats").innerHTML = "";
+                $("rm-sub").textContent = "no data (menu closed?)";
+                history.past = [];
+                history.future = [];
+                updateHistoryButtons();
+                return;
+            }
+            data.entries.forEach((e) => {
+                const prev = prevInitial.get(entryKey(e));
+                e.initialPosition = prev !== undefined ? prev.position : e.position;
+                if (e.tintType >= 0) {
+                    e.initialFillColor = prev !== undefined && prev.fillColor !== undefined ? prev.fillColor : e.fillColor;
+                }
+            });
+            updateHistoryButtons();
+            $("rm-sub").textContent =
+                data.entries.length + " entries · " + data.categories.length + " categories";
+
+            buildCategoryChips();
+            buildRows();
+            applyFilter();
+        };
+
+        // Reply to rmpGetSliderInfo: show which head part (mesh) a slider
+        // value maps to, e.g. a KS Hairdos .nif name.
+        window.rmpSliderInfo = (info) => {
+            const row = state.rowBySliderID.get(info.sliderID);
+            if (!row || !row.partEl) return;
+            if (info.partName) {
+                row.partEl.textContent = info.partName + (info.parts ? " · " + info.parts + " variants" : "");
+                row.partEl.style.display = "";
+            } else {
+                row.partEl.textContent = "";
+                row.partEl.style.display = "none";
+            }
+        };
+
+        function requestSliderInfo(e) {
+            if (e.sliderID >= 0 && (e.callbackName === "ChangeHeadPart" || e.callbackName === "ChangeDoubleMorph")) {
+                window.rmpGetSliderInfo(e.sliderID + "|" + e.position);
+            }
+        }
+
+        // ---------- color helpers ----------
+
+        // Constants from RaceMenuDefines.as
+        const TINT_HAIR = 128;
+        const CATEGORY_COLOR = 8192;
+        const isOverlay = (t) => t >= 256 && t <= 259;
+
+        function tintIndexFor(entry) {
+            // Paint/makeup slot entries (type 3..7) carry their own slot index.
+            if (entry.type >= 3) return entry.tintIndex;
+            // Color sliders in the COLORS tab target the preset chosen by
+            // their static slider.
+            const bySlider = (id) => {
+                const e = state.data.entries.find((x) => x.sliderID === id);
+                return e ? e.position : 0;
+            };
+            if (entry.tintType === 7) return bySlider(7);   // warpaint
+            if (entry.tintType === 14) return bySlider(4);  // dirt
+            return 0;
+        }
+
+        function sendColor(entry, argb) {
+            entry.fillColor = argb;
+            // The SWF composes "color | alpha << 24" with AS2 bitwise ops,
+            // which are SIGNED int32, and Papyrus parses the string as a
+            // signed int too — alpha >= 128 must go out as a negative number
+            // or the parse overflows and the tint breaks.
+            const signed = argb | 0;
+            const idx = tintIndexFor(entry);
+            if (entry.tintType === TINT_HAIR) {
+                window.rmpModEvent("RSM_HairColorChange|" + signed + "|0");
+            } else if (isOverlay(entry.tintType)) {
+                window.rmpModEvent("RSM_OverlayColorChange|" + signed + "|" + (entry.tintType * 1000 + idx));
+            } else {
+                window.rmpModEvent("RSM_TintColorChange|" + signed + "|" + (entry.tintType * 1000 + idx));
+            }
+        }
+
+        const hex2 = (n) => n.toString(16).padStart(2, "0");
+        const argbToHex = (argb) => "#" + hex2((argb >>> 16) & 255) + hex2((argb >>> 8) & 255) + hex2(argb & 255);
+        const argbAlpha = (argb) => (argb >>> 24) & 255;
+
+        function hsv2rgb(h, s, v) {
+            const c = v * s;
+            const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+            const m = v - c;
+            let r, g, b;
+            if (h < 60) { r = c; g = x; b = 0; }
+            else if (h < 120) { r = x; g = c; b = 0; }
+            else if (h < 180) { r = 0; g = c; b = x; }
+            else if (h < 240) { r = 0; g = x; b = c; }
+            else if (h < 300) { r = x; g = 0; b = c; }
+            else { r = c; g = 0; b = x; }
+            return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+        }
+
+        function rgb2hsv(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+            let h = 0;
+            if (d) {
+                if (max === r) h = 60 * (((g - b) / d) % 6);
+                else if (max === g) h = 60 * ((b - r) / d + 2);
+                else h = 60 * ((r - g) / d + 4);
+            }
+            if (h < 0) h += 360;
+            return [h, max === 0 ? 0 : d / max, max];
+        }
+
+        // Preset palette: grays, skin tones, hair browns, generic hues.
+        const PALETTE = [
+            0x1a1a1a, 0x4a4a4a, 0x8a8a8a, 0xe8e8e8,
+            0xf5d7b8, 0xd9a678, 0xa5673f, 0x6b3e26,
+            0x241a10, 0x4a2f1b, 0x7a4b22, 0xb58143,
+            0xb02a2a, 0xc9a227, 0x2f8a4a, 0x2a6db0,
+        ];
+
+        function addRecentColor(argb) {
+            const rgbOnly = argb & 0xffffff;
+            state.recentColors = state.recentColors.filter((c) => (c & 0xffffff) !== rgbOnly);
+            state.recentColors.unshift(argb);
+            state.recentColors = state.recentColors.slice(0, 8);
+        }
+
+        // ---------- custom color picker ----------
+        // Ultralight's native <input type="color"> is unusable in-game, so the
+        // picker is hand-built: SV square + hue bar + alpha bar + hex + palette.
+        function buildColorEditor(entry, swatchFill) {
+            const wrap = document.createElement("div");
+            wrap.className = "color-editor";
+
+            const initialArgb = entry.fillColor >>> 0;
+            let [h, s, v] = rgb2hsv((initialArgb >>> 16) & 255, (initialArgb >>> 8) & 255, initialArgb & 255);
+            let a = argbAlpha(initialArgb) || (entry.tintType === TINT_HAIR ? 255 : 128);
+
+            const sv = document.createElement("div");
+            sv.className = "cp-sv";
+            const svCursor = document.createElement("div");
+            svCursor.className = "cp-cursor";
+            sv.appendChild(svCursor);
+
+            const hueBar = document.createElement("div");
+            hueBar.className = "cp-bar cp-hue";
+            const hueThumb = document.createElement("div");
+            hueThumb.className = "cp-thumb";
+            hueBar.appendChild(hueThumb);
+
+            const alphaBar = document.createElement("div");
+            alphaBar.className = "cp-bar cp-alpha";
+            const alphaGrad = document.createElement("div");
+            alphaGrad.className = "cp-alpha-grad";
+            const alphaThumb = document.createElement("div");
+            alphaThumb.className = "cp-thumb";
+            alphaBar.appendChild(alphaGrad);
+            alphaBar.appendChild(alphaThumb);
+
+            const fields = document.createElement("div");
+            fields.className = "cp-fields";
+            const preview = document.createElement("div");
+            preview.className = "cp-preview";
+            const previewFill = document.createElement("span");
+            preview.appendChild(previewFill);
+            const hexInput = document.createElement("input");
+            hexInput.className = "cp-hex";
+            hexInput.type = "text";
+            hexInput.maxLength = 7;
+            const alphaLabel = document.createElement("span");
+            alphaLabel.className = "cp-alpha-label";
+            fields.appendChild(preview);
+            fields.appendChild(hexInput);
+            fields.appendChild(alphaLabel);
+
+            const palette = document.createElement("div");
+            palette.className = "cp-palette";
+            PALETTE.forEach((rgb) => {
+                const p = document.createElement("span");
+                p.className = "pal";
+                p.style.background = argbToHex(rgb);
+                p.addEventListener("click", () => {
+                    dirty = true;
+                    setColorValue(((a << 24) | rgb) >>> 0, false);
+                    commitGesture();
+                });
+                palette.appendChild(p);
+            });
+
+            const recentRow = document.createElement("div");
+            recentRow.className = "recent-colors";
+
+            wrap.appendChild(sv);
+            wrap.appendChild(hueBar);
+            wrap.appendChild(alphaBar);
+            wrap.appendChild(fields);
+            wrap.appendChild(palette);
+            wrap.appendChild(recentRow);
+
+            let gestureStart = initialArgb;
+            let dirty = false;
+            let rowRef = null;
+
+            const currentArgb = () => {
+                const [r, g, b] = hsv2rgb(h, s, v);
+                return (((a & 255) << 24) | (r << 16) | (g << 8) | b) >>> 0;
+            };
+
+            function refreshUi() {
+                const [r, g, b] = hsv2rgb(h, s, v);
+                const hex = "#" + hex2(r) + hex2(g) + hex2(b);
+                const hueHex = "#" + hsv2rgb(h, 1, 1).map(hex2).join("");
+                sv.style.backgroundColor = hueHex;
+                svCursor.style.left = (s * 100) + "%";
+                svCursor.style.top = ((1 - v) * 100) + "%";
+                hueThumb.style.left = (h / 360 * 100) + "%";
+                alphaThumb.style.left = (a / 255 * 100) + "%";
+                alphaGrad.style.background =
+                    "linear-gradient(to right, rgba(" + r + "," + g + "," + b + ",0), rgb(" + r + "," + g + "," + b + "))";
+                if (document.activeElement !== hexInput) hexInput.value = hex;
+                alphaLabel.textContent = "alpha " + a;
+                previewFill.style.background = hex;
+                previewFill.style.opacity = Math.max(a / 255, 0.15);
+                swatchFill.style.background = hex;
+                swatchFill.style.opacity = Math.max(a / 255, 0.15);
+            }
+
+            // fromHistory=true still applies the color in-game (undo/redo must
+            // take effect), it only skips re-recording a history step.
+            function setColorValue(argb, fromHistory) {
+                argb = argb >>> 0;
+                const r = (argb >>> 16) & 255, g = (argb >>> 8) & 255, b = argb & 255;
+                const [nh, ns, nv] = rgb2hsv(r, g, b);
+                // Keep the current hue when the color is achromatic, so the
+                // SV square doesn't snap to red while dragging along gray.
+                if (ns > 0 && nv > 0) h = nh;
+                s = ns; v = nv; a = argbAlpha(argb);
+                entry.fillColor = argb;
+                refreshUi();
+                sendColorThrottled(entry, argb);
+                updateRowChangedState(rowRef);
+            }
+
+            function applyLocal() {
+                dirty = true;
+                const argb = currentArgb();
+                entry.fillColor = argb;
+                refreshUi();
+                sendColorThrottled(entry, argb);
+                updateRowChangedState(rowRef);
+            }
+
+            function commitGesture() {
+                if (!dirty) return;
+                dirty = false;
+                const argb = entry.fillColor >>> 0;
+                if (argb !== gestureStart) {
+                    pushHistory({ kind: "color", key: rowRef ? rowRef.key : entryKey(entry), from: gestureStart, to: argb });
+                    addRecentColor(argb);
+                    renderRecentColors();
+                }
+                gestureStart = argb;
+            }
+
+            function dragify(el, onPoint) {
+                onDragStart(el, (ev) => {
+                    ev.preventDefault();
+                    const apply = (mv) => {
+                        const rect = el.getBoundingClientRect();
+                        const px = Math.min(1, Math.max(0, (mv.clientX - rect.left) / rect.width));
+                        const py = Math.min(1, Math.max(0, (mv.clientY - rect.top) / rect.height));
+                        onPoint(px, py);
+                        applyLocal();
+                    };
+                    apply(ev);
+                    trackDrag(apply, commitGesture);
+                });
+            }
+
+            dragify(sv, (px, py) => { s = px; v = 1 - py; });
+            dragify(hueBar, (px) => { h = Math.min(359.9, px * 360); });
+            dragify(alphaBar, (px) => { a = Math.round(px * 255); });
+
+            hexInput.addEventListener("keydown", (ev) => {
+                ev.stopPropagation();
+                if (ev.key === "Enter") hexInput.blur();
+            });
+            hexInput.addEventListener("blur", () => {
+                const m = hexInput.value.trim().match(/^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/);
+                if (!m) { refreshUi(); return; }
+                let hx = m[1];
+                if (hx.length === 3) hx = hx.split("").map((c) => c + c).join("");
+                dirty = true;
+                setColorValue(((a << 24) | parseInt(hx, 16)) >>> 0, false);
+                commitGesture();
+            });
+
+            function renderRecentColors() {
+                recentRow.innerHTML = "";
+                if (!state.recentColors.length) return;
+                const lbl = document.createElement("span");
+                lbl.className = "rc-label";
+                lbl.textContent = "recent";
+                recentRow.appendChild(lbl);
+                state.recentColors.forEach((c) => {
+                    const mini = document.createElement("span");
+                    mini.className = "swatch-mini";
+                    mini.style.background = argbToHex(c);
+                    mini.title = argbToHex(c);
+                    mini.addEventListener("click", () => {
+                        dirty = true;
+                        setColorValue(c, false);
+                        commitGesture();
+                    });
+                    recentRow.appendChild(mini);
+                });
+            }
+
+            let lastSent = 0;
+            let pending = null;
+            function sendColorThrottled(e, argb) {
+                const now = Date.now();
+                clearTimeout(pending);
+                if (now - lastSent > 100) {
+                    lastSent = now;
+                    sendColor(e, argb);
+                } else {
+                    pending = setTimeout(() => { lastSent = Date.now(); sendColor(e, argb); }, 100);
+                }
+            }
+
+            renderRecentColors();
+            refreshUi();
+
+            return {
+                editorEl: wrap,
+                setColorValue,
+                bindRow: (row) => { rowRef = row; },
+            };
+        }
+
+        // ---------- rendering ----------
+
+        function fmt(v, interval) {
+            return interval >= 1 ? String(Math.round(v)) : v.toFixed(2);
+        }
+
+        function isChanged(e) {
+            if (Math.abs(e.position - e.initialPosition) > 1e-4) return true;
+            if (e.tintType >= 0 && (e.fillColor >>> 0) !== (e.initialFillColor >>> 0)) return true;
+            return false;
+        }
+
+        function updateRowChangedState(row) {
+            if (!row) return;
+            row.el.classList.toggle("changed", isChanged(row.entry));
+            if (state.showChangedOnly) applyFilter();
+        }
+
+        // Alt+click on a slider name shows the raw bridge identity — used to
+        // diagnose mistranslated/misnamed sliders without opening the log.
+        function toggleRawInfo(row) {
+            const e = row.entry;
+            if (row.rawEl) {
+                row.rawEl.remove();
+                row.rawEl = null;
+                return;
+            }
+            const raw = document.createElement("div");
+            raw.className = "raw-info";
+            const orig = e.rawText && e.rawText !== e.text ? "raw \"" + e.rawText + "\" · " : "";
+            raw.textContent = orig + e.callbackName + " · id " + e.sliderID +
+                " · flag " + e.filterFlag + (e.tintType >= 0 ? " · tint " + e.tintType : "");
+            row.el.appendChild(raw);
+            row.rawEl = raw;
+        }
+
+        function buildCategoryChips() {
+            const cats = $("rm-cats");
+            cats.innerHTML = "";
+
+            const icons = {
+                2: "<path d='M12 3v18M8 7h8M8 17h8'/><circle cx='12' cy='5' r='2'/>",
+                4: "<path d='M8 3h8l2 6-3 3 2 9H7l2-9-3-3z'/>",
+                8: "<path d='M7 10c0-5 10-5 10 0v4c0 5-10 5-10 0z'/><path d='M9 10h.01M15 10h.01'/>",
+                16: "<path d='M6 10c1-7 11-7 12 0v5c-2 5-10 5-12 0z'/><path d='M9 13h6M10 17h4'/>",
+                32: "<path d='M3 12s3-5 9-5 9 5 9 5-3 5-9 5-9-5-9-5z'/><circle cx='12' cy='12' r='2'/>",
+                64: "<path d='M4 14c3-5 6-5 8-2 2-3 5-3 8 2M5 8l5-2M14 6l5 2'/>",
+                128: "<path d='M5 14c4 5 10 5 14 0-4-2-10-2-14 0z'/>",
+                256: "<path d='M5 19c0-9 2-14 7-14s7 5 7 14M7 9c3 2 7 2 10 0'/>",
+                512: "<path d='M12 3v18M3 12h18M5 5l14 14M19 5L5 19'/>",
+                1024: "<path d='M5 13c1 6 13 6 14 0M8 9h.01M16 9h.01'/>",
+                8192: "<circle cx='12' cy='12' r='8'/><path d='M12 4a8 8 0 0 0 0 16c2-3 2-5 0-8 3 0 5-1 8-3'/>",
+                16384: "<path d='m5 19 10-10 4 4L9 23H5zM14 6l2-2 4 4-2 2z'/>",
+                32768: "<path d='M7 3h10v18H7zM9 7h6M9 12h6M9 17h6'/>",
+                65536: "<path d='M8 21V9c0-3 4-3 4 0V5c0-3 4-3 4 0v7c0-3 4-3 4 0v5c0 3-3 4-6 4z'/>",
+                131072: "<path d='M9 3v11l-3 5c-1 2 1 3 3 2l2-2 2 2c2 1 4 0 3-2l-3-5V3z'/>",
+                262144: "<path d='M6 7c1-5 11-5 12 0v10c-3 5-9 5-12 0z'/><path d='M9 13h6'/>",
+            };
+            const fallbackIcon = (text) => {
+                const t = (text || "").toLowerCase();
+                if (/body|cbbe|himbo|morph/.test(t)) return icons[4];
+                if (/hair/.test(t)) return icons[256];
+                if (/eye/.test(t)) return icons[32];
+                if (/paint|makeup|tint/.test(t)) return icons[8192];
+                return "<path d='M12 3v18M3 12h18'/><circle cx='12' cy='12' r='3'/>";
+            };
+
+            const mkChip = (label, catValue, title, icon) => {
+                const chip = document.createElement("button");
+                chip.className = "chip";
+                chip.innerHTML = "<svg viewBox='0 0 24 24' aria-hidden='true'>" + icon + "</svg><span></span>";
+                chip.lastChild.textContent = label;
+                if (title) chip.title = title;
+                if (state.activeCat === catValue) chip.classList.add("active");
+                chip.addEventListener("click", () => {
+                    state.activeCat = state.activeCat === catValue ? null : catValue;
+                    buildCategoryChips();
+                    applyFilter();
+                });
+                cats.appendChild(chip);
+            };
+
+            mkChip("All", null, "All categories", "<rect x='4' y='4' width='6' height='6'/><rect x='14' y='4' width='6' height='6'/><rect x='4' y='14' width='6' height='6'/><rect x='14' y='14' width='6' height='6'/>");
+            state.data.categories.forEach((c, i) => {
+                if (!c.text) return;
+                mkChip(displayName(c.text), i, c.text, icons[c.flag] || fallbackIcon(c.text));
+            });
+        }
+
+        // Paint/makeup slot rows (type 3=warpaint, 4=body, 5=hand, 6=foot,
+        // 7=face): a texture picker + a color swatch. Texture catalogs come
+        // from the SWF's makeupList (data.makeup[listType]).
+        function buildPaintRow(e, row) {
+            const rowEl = row.el;
+
+            const top = document.createElement("div");
+            top.className = "top";
+
+            const label = document.createElement("span");
+            label.className = "name";
+            label.textContent = displayName(e.text);
+
+            label.title = "Alt+click for info";
+            label.addEventListener("click", (ev) => {
+                if (ev.altKey) toggleRawInfo(row);
+            });
+
+            const swatch = document.createElement("span");
+            swatch.className = "swatch";
+            const fill = document.createElement("span");
+            fill.className = "fill";
+            const argb = e.fillColor >>> 0;
+            fill.style.background = argbToHex(argb);
+            fill.style.opacity = Math.max(argbAlpha(argb) / 255, 0.15);
+            swatch.appendChild(fill);
+            label.appendChild(swatch);
+
+            const colorCtl = buildColorEditor(e, fill);
+            colorCtl.bindRow(row);
+            row.setColorValue = colorCtl.setColorValue;
+            swatch.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                colorCtl.editorEl.classList.toggle("open");
+            });
+
+            top.appendChild(label);
+            rowEl.appendChild(top);
+
+            // Texture picker.
+            const texWrap = document.createElement("div");
+            texWrap.className = "paint-tex";
+            const texBtn = document.createElement("button");
+            const texName = () => {
+                const t = e.texture || "";
+                const base = t.split(/[\\\/]/).pop() || "default";
+                return base.replace(/\.dds$/i, "");
+            };
+            texBtn.textContent = "Texture: " + texName();
+            texWrap.appendChild(texBtn);
+            rowEl.appendChild(texWrap);
+
+            const texMenu = document.createElement("div");
+            texMenu.className = "dd-menu";
+            rowEl.appendChild(texMenu);
+
+            texBtn.addEventListener("click", () => {
+                if (!texMenu.childElementCount) {
+                    const catalog = (state.data.makeup && state.data.makeup[e.listType]) || [];
+                    if (!catalog.length) {
+                        const empty = document.createElement("div");
+                        empty.className = "dd-item";
+                        empty.textContent = "(no textures registered)";
+                        texMenu.appendChild(empty);
+                    }
+                    catalog.forEach((t) => {
+                        const item = document.createElement("div");
+                        item.className = "dd-item";
+                        item.textContent = t.text || t.texture;
+                        item.title = t.texture;
+                        if (t.texture) attachTexHover(item, () => t.texture);
+                        item.addEventListener("click", () => {
+                            // SendPlayerTexture in the SWF: overlay types use
+                            // the Overlay event, everything else Tint.
+                            const ev = isOverlay(e.tintType) ? "RSM_OverlayTextureChange" : "RSM_TintTextureChange";
+                            window.rmpModEvent(ev + "|" + t.texture + "|" + (e.tintType * 1000 + e.tintIndex));
+                            e.texture = t.texture;
+                            texBtn.textContent = "Texture: " + texName();
+                            texMenu.classList.remove("open");
+                        });
+                        texMenu.appendChild(item);
+                    });
+                }
+                texMenu.classList.toggle("open");
+            });
+
+            rowEl.appendChild(colorCtl.editorEl);
+        }
+
+        function makeRaceCrest(name) {
+            const sigils = {
+                "argonian": "<path d='M12 3 7 8l2 3-3 3 3 7h6l3-7-3-3 2-3z'/><path d='M9 12h6M10 16h4'/>",
+                "breton": "<path d='m12 3 7 5-3 12H8L5 8z'/><path d='m12 6 2 5-2 5-2-5z'/>", "dark elf": "<path d='M12 3c4 3 5 7 4 13l-4 5-4-5c-1-6 0-10 4-13z'/><path d='M8 10h8M12 6v12'/>",
+                "high elf": "<path d='m12 3 3 7 5 2-5 2-3 7-3-7-5-2 5-2z'/>", "imperial": "<path d='M5 5h14v11l-7 5-7-5z'/><path d='M8 9h8M12 6v10'/>",
+                "khajiit": "<path d='m7 7 2-4 3 3 3-3 2 4v8c-2 4-8 4-10 0z'/><path d='M9 12h.01M15 12h.01M10 16h4'/>", "nord": "<path d='M12 3v18M5 7h14M7 17h10M8 7l4 5 4-5'/>",
+                "orc": "<path d='m6 5 4 2 2-4 2 4 4-2-2 6 2 8-6 2-6-2 2-8z'/><path d='M8 13h8'/>", "redguard": "<path d='m12 3 6 4-2 11-4 3-4-3L6 7z'/><path d='M9 9h6M12 6v12'/>",
+                "wood elf": "<path d='M12 3c5 4 6 10 0 18C6 13 7 7 12 3z'/><path d='M12 6v11M9 11l3 2 3-2'/>",
+            };
+            const crest = document.createElement("span");
+            crest.className = "race-crest";
+            const neutral = "<path d='m12 3 2.4 5.6L21 10l-5 4.1 1.5 6.9-5.5-3.3-5.5 3.3L8 14.1 3 10l6.6-1.4z'/><circle cx='12' cy='12' r='2.2'/>";
+            crest.innerHTML = "<svg viewBox='0 0 24 24' aria-hidden='true'>" + (sigils[name.toLowerCase()] || neutral) + "</svg>";
+            return crest;
+        }
+
+        function buildRaceRow(e, row) {
+            const rowEl = row.el;
+            rowEl.classList.add("race");
+
+            const top = document.createElement("div");
+            top.className = "top";
+
+            const label = document.createElement("span");
+            label.className = "name";
+            label.textContent = displayName(e.text);
+
+            const crest = makeRaceCrest(label.textContent);
+
+            const badge = document.createElement("span");
+            badge.className = "race-badge";
+
+            top.appendChild(crest);
+            top.appendChild(label);
+            top.appendChild(badge);
+            rowEl.appendChild(top);
+
+            row.refreshRaceActive = () => {
+                const active = state.playerRace && displayName(e.text) === state.playerRace;
+                rowEl.classList.toggle("active-race", Boolean(active));
+                badge.textContent = active ? "current" : "select";
+            };
+            row.refreshRaceActive();
+
+            rowEl.addEventListener("click", () => {
+                // Same call the original SWF makes in onItemPress:
+                // GameDelegate.call("ChangeRace", [raceID, -1]).
+                window.rmpSliderChange("ChangeRace|-1|" + e.raceID);
+                badge.textContent = "loading…";
+            });
+        }
+
+        function finishControlRow(row) {
+            const e = row.entry;
+            const list = $("rm-list");
+            list.appendChild(row.el);
+            updateRowChangedState(row);
+            state.rows.push(row);
+            state.rowByKey.set(row.key, row);
+            if (e.sliderID >= 0) state.rowBySliderID.set(e.sliderID, row);
+            if (e.callbackName === "ChangeHeadPart") requestSliderInfo(e);
+        }
+
+        function isSexEntry(e) {
+            return e.callbackName === "ChangeSex" ||
+                (e.min === 0 && e.max === 1 && e.interval >= 1 && /sex/i.test(e.rawText || e.text || ""));
+        }
+
+        // Only custom continuous body-style morphs are safe candidates for
+        // raw over-range values. 3BA and HIMBO use their own callback prefixes
+        // (not ChangeDoubleMorph), while Weight, vanilla face sliders and tints
+        // retain the range registered by RaceMenu.
+        function canOverdrive(e) {
+            const customBodyCallback = /^(ChangeDoubleMorph|ChangeMorphCBBE|rsm_bodymorph_himbo)/i.test(e.callbackName || "");
+            return e.type === 2 && customBodyCallback && e.sliderID >= 1000 && e.interval < 1;
+        }
+
+        function buildSexControl(e, row, label) {
+            const ctl = document.createElement("div");
+            ctl.className = "sex-control";
+            [[0, "♂", "Male"], [1, "♀", "Female"]].forEach(([value, icon, text]) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.innerHTML = icon + "<span>" + text + "</span>";
+                const refresh = () => btn.classList.toggle("active", Math.round(e.position) === value);
+                refresh();
+                btn.addEventListener("click", () => {
+                    const from = e.position;
+                    if (Math.round(from) === value) return;
+                    e.position = value;
+                    ctl.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    window.rmpSliderChange("ChangeSex|" + e.sliderID + "|" + value);
+                    pushHistory({ kind: "slider", key: row.key, from, to: value });
+                    updateRowChangedState(row);
+                });
+                ctl.appendChild(btn);
+            });
+            row.setSliderValue = (v) => {
+                e.position = Math.round(v);
+                ctl.querySelectorAll("button").forEach((b, i) => b.classList.toggle("active", i === e.position));
+                window.rmpSliderChange("ChangeSex|" + e.sliderID + "|" + e.position);
+                updateRowChangedState(row);
+            };
+            row.el.appendChild(ctl);
+        }
+
+        function buildStepper(e, row) {
+            const ctl = document.createElement("div");
+            ctl.className = "stepper";
+            const prev = document.createElement("button"); prev.textContent = "‹";
+            const readout = document.createElement("span"); readout.className = "step-value";
+            const next = document.createElement("button"); next.textContent = "›";
+            const min = Math.round(e.min), max = Math.round(e.max);
+            const refresh = () => { readout.textContent = Math.round(e.position) + " / " + max; prev.disabled = e.position <= min; next.disabled = e.position >= max; };
+            const set = (v, historyFrom) => {
+                e.position = Math.min(max, Math.max(min, Math.round(v)));
+                refresh(); updateRowChangedState(row);
+                window.rmpSliderChange(e.callbackName + "|" + e.sliderID + "|" + e.position);
+                requestSliderInfo(e);
+                if (historyFrom !== undefined && historyFrom !== e.position) pushHistory({ kind: "slider", key: row.key, from: historyFrom, to: e.position });
+            };
+            prev.addEventListener("click", () => set(e.position - 1, e.position));
+            next.addEventListener("click", () => set(e.position + 1, e.position));
+            row.setSliderValue = (v) => set(v);
+            refresh(); ctl.appendChild(prev); ctl.appendChild(readout); ctl.appendChild(next); row.el.appendChild(ctl);
+        }
+
+        function buildRows() {
+            const list = $("rm-list");
+            list.innerHTML = "";
+            state.rows = [];
+            state.rowByKey = new Map();
+            state.rowBySliderID = new Map();
+
+            state.data.entries.forEach((e) => {
+                if (!e.enabled || !e.text) return;
+                if (e.type < 1 || e.type > 7) return;
+
+                const row = { entry: e, key: entryKey(e) };
+
+                const rowEl = document.createElement("div");
+                rowEl.className = "rm-row";
+                row.el = rowEl;
+
+                if (e.type === 1) {
+                    buildRaceRow(e, row);
+                    list.appendChild(rowEl);
+                    state.rows.push(row);
+                    state.rowByKey.set(row.key, row);
+                    return;
+                }
+
+                if (e.type >= 3) {
+                    buildPaintRow(e, row);
+                    list.appendChild(rowEl);
+                    state.rows.push(row);
+                    state.rowByKey.set(row.key, row);
+                    return;
+                }
+
+                const top = document.createElement("div");
+                top.className = "top";
+
+                const label = document.createElement("span");
+                label.className = "name";
+                label.textContent = displayName(e.text);
+                label.title = "Double-click to reset · Alt+click for info";
+                label.addEventListener("dblclick", () => resetEntry(row));
+                label.addEventListener("click", (ev) => {
+                    if (ev.altKey) toggleRawInfo(row);
+                });
+                if (e.sliderID >= 1000) {
+                    // Cosmetic only: any non-vanilla slider, regardless of which
+                    // addon registered it — dispatch treats them identically.
+                    const mark = document.createElement("span");
+                    mark.className = "custom-mark";
+                    mark.textContent = "custom";
+                    label.appendChild(mark);
+                }
+
+                // Flash represented sex and enumerated head parts as sliders.
+                // In a character creator they are choices, so use direct controls.
+                if (isSexEntry(e)) {
+                    top.appendChild(label);
+                    rowEl.appendChild(top);
+                    buildSexControl(e, row, label);
+                    finishControlRow(row);
+                    return;
+                }
+                const hasColorControl = e.filterFlag > 0 && (e.filterFlag & CATEGORY_COLOR) && e.tintType >= 0;
+                // Keep discrete colour entries on the full row path below so
+                // their swatch and custom colour editor are never discarded.
+                if (!hasColorControl && e.interval >= 1 && (e.max - e.min) <= 80) {
+                    top.appendChild(label);
+                    rowEl.appendChild(top);
+                    buildStepper(e, row);
+                    const partEl = document.createElement("div");
+                    partEl.className = "part-name";
+                    partEl.style.display = "none";
+                    row.partEl = partEl;
+                    rowEl.appendChild(partEl);
+                    finishControlRow(row);
+                    return;
+                }
+
+                // Color-capable entries (CATEGORY_COLOR flag set by the SWF) get a swatch.
+                let colorCtl = null;
+                if (hasColorControl) {
+                    const swatch = document.createElement("span");
+                    swatch.className = "swatch";
+                    const fill = document.createElement("span");
+                    fill.className = "fill";
+                    const argb = e.fillColor >>> 0;
+                    fill.style.background = argbToHex(argb);
+                    fill.style.opacity = Math.max(argbAlpha(argb) / 255, 0.15);
+                    swatch.appendChild(fill);
+                    label.appendChild(swatch);
+
+                    colorCtl = buildColorEditor(e, fill);
+                    colorCtl.bindRow(row);
+                    swatch.addEventListener("click", (ev) => {
+                        ev.stopPropagation();
+                        colorCtl.editorEl.classList.toggle("open");
+                    });
+                }
+
+                const val = document.createElement("span");
+                val.className = "val";
+                val.textContent = fmt(e.position, e.interval);
+                val.title = canOverdrive(e) ? "Click to type a value · Overdrive supports custom ranges" : "Click to type a value";
+
+                top.appendChild(label);
+                top.appendChild(val);
+
+                const slider = document.createElement("input");
+                slider.type = "range";
+                slider.min = e.min;
+                slider.max = e.max;
+                slider.step = e.interval > 0 ? e.interval : 0.01;
+                slider.value = e.position;
+
+                let lastSent = 0;
+                let gestureStart = e.position;
+                const send = (final) => {
+                    const now = Date.now();
+                    if (!final && now - lastSent < 60) return;
+                    lastSent = now;
+                    window.rmpSliderChange(e.callbackName + "|" + e.sliderID + "|" + slider.value);
+                };
+
+                function applyLocalValue(v, allowOverdrive) {
+                    if (!isFinite(v)) return e.position;
+                    // The slider track stays within the registered range, but
+                    // Overdrive lets an explicit typed value travel unchanged
+                    // to GameDelegate. This never applies to steppers/sex.
+                    if (!(state.overdrive && allowOverdrive && canOverdrive(e))) {
+                        v = Math.min(e.max, Math.max(e.min, v));
+                    }
+                    e.position = v;
+                    const trackValue = Math.min(e.max, Math.max(e.min, v));
+                    slider.value = trackValue;
+                    slider.style.setProperty("--fill", (((trackValue - e.min) / Math.max(0.0001, e.max - e.min)) * 100) + "%");
+                    val.textContent = fmt(v, e.interval);
+                    updateRowChangedState(row);
+                    return v;
+                }
+
+                slider.addEventListener("pointerdown", () => { gestureStart = e.position; });
+                slider.addEventListener("mousedown", () => { gestureStart = e.position; });
+                slider.addEventListener("input", () => {
+                    applyLocalValue(parseFloat(slider.value));
+                    send(false);
+                });
+                slider.addEventListener("change", () => {
+                    send(true);
+                    requestSliderInfo(e);
+                    if (Math.abs(e.position - gestureStart) > 1e-9) {
+                        pushHistory({ kind: "slider", key: row.key, from: gestureStart, to: e.position });
+                    }
+                    gestureStart = e.position;
+                });
+
+                // NOTE: no wheel handler on purpose — scrolling the list must
+                // never change slider values (explicit user request).
+
+                // Click the value to type an exact number.
+                val.addEventListener("click", () => {
+                    if (val.querySelector("input")) return;
+                    const from = e.position;
+                    const input = document.createElement("input");
+                    input.type = "number";
+                    if (!(state.overdrive && canOverdrive(e))) {
+                        input.min = e.min;
+                        input.max = e.max;
+                    }
+                    input.step = e.interval > 0 ? e.interval : 0.01;
+                    input.value = e.position;
+
+                    let finished = false;
+                    const finish = (commit) => {
+                        if (finished) return;
+                        finished = true;
+                        if (commit) {
+                            const to = applyLocalValue(parseFloat(input.value), true);
+                            window.rmpSliderChange(e.callbackName + "|" + e.sliderID + "|" + to);
+                            requestSliderInfo(e);
+                            if (Math.abs(to - from) > 1e-9) {
+                                pushHistory({ kind: "slider", key: row.key, from, to });
+                            }
+                        }
+                        val.textContent = fmt(e.position, e.interval);
+                    };
+
+                    input.addEventListener("keydown", (ev) => {
+                        ev.stopPropagation();
+                        if (ev.key === "Enter") { finish(true); }
+                        else if (ev.key === "Escape") { finish(false); }
+                    });
+                    input.addEventListener("blur", () => finish(true));
+
+                    val.textContent = "";
+                    val.appendChild(input);
+                    input.focus();
+                    input.select();
+                });
+
+                row.setSliderValue = (v) => {
+                    const applied = applyLocalValue(v, true);
+                    window.rmpSliderChange(e.callbackName + "|" + e.sliderID + "|" + applied);
+                    gestureStart = applied;
+                };
+                if (colorCtl) {
+                    row.setColorValue = colorCtl.setColorValue;
+                }
+
+                const partEl = document.createElement("div");
+                partEl.className = "part-name";
+                partEl.style.display = "none";
+                row.partEl = partEl;
+
+                rowEl.appendChild(top);
+                rowEl.appendChild(slider);
+                slider.style.setProperty("--fill", (((e.position - e.min) / Math.max(0.0001, e.max - e.min)) * 100) + "%");
+                rowEl.appendChild(partEl);
+                if (colorCtl) {
+                    rowEl.appendChild(colorCtl.editorEl);
+                }
+                list.appendChild(rowEl);
+                updateRowChangedState(row);
+
+                state.rows.push(row);
+                state.rowByKey.set(row.key, row);
+                if (e.sliderID >= 0) {
+                    state.rowBySliderID.set(e.sliderID, row);
+                }
+                // Head-part selectors show their mesh name right away.
+                if (e.callbackName === "ChangeHeadPart") {
+                    requestSliderInfo(e);
+                }
+            });
+
+            $("rm-count").textContent = state.rows.length + " entries";
+        }
+
+        function resetSteps(row) {
+            const e = row.entry;
+            const steps = [];
+            if (Math.abs(e.position - e.initialPosition) > 1e-9 && row.setSliderValue) {
+                steps.push({ kind: "slider", key: row.key, from: e.position, to: e.initialPosition });
+            }
+            if (e.tintType >= 0 && row.setColorValue) {
+                const fromColor = e.fillColor >>> 0;
+                const toColor = e.initialFillColor >>> 0;
+                if (fromColor !== toColor) {
+                    steps.push({ kind: "color", key: row.key, from: fromColor, to: toColor });
+                }
+            }
+            return steps;
+        }
+
+        function resetEntry(row) {
+            const steps = resetSteps(row);
+            steps.forEach((s) => applySingle(s, s.to));
+            if (steps.length === 1) pushHistory(steps[0]);
+            else if (steps.length > 1) pushHistory({ kind: "batch", steps });
+        }
+
+        // ---------- filtering ----------
+
+        // Keyword-based body/sex filter: hides sliders that clearly belong to
+        // the other body type. Heuristic on purpose — toggleable via ♀♂.
+        function sexFiltered(e) {
+            if (!state.sexFilter) return false;
+            const t = (e.text + " " + (e.rawText || "")).toLowerCase();
+            if (state.playerSex === "female" && /\bhimbo\b/.test(t)) return true;
+            if (state.playerSex === "male" && /\b(3ba|cbbe|uunp|bhunp|tbd)\b/.test(t)) return true;
+            if (!/ube/i.test(state.playerRace) && /\bube\b/.test(t)) return true;
+            return false;
+        }
+
+        function matchesCategory(entry, cat) {
+            // Ground truth = CategoryFilter.entryMatchesFilter in the SWF:
+            // an entry with NO filterFlag matches ANY category; otherwise
+            // match by flag bitmask, then fall back to text filters.
+            if (entry.filterFlag < 0) return true;
+            if (cat.flag && (entry.filterFlag & cat.flag) !== 0) return true;
+            if (cat.textFilter && entry.textFilters &&
+                entry.textFilters.split("|").indexOf(cat.textFilter) !== -1) return true;
+            return false;
+        }
+
+        function applyFilter() {
+            const q = $("rm-search").value.trim().toLowerCase();
+            const cat = state.activeCat === null ? null : state.data.categories[state.activeCat];
+
+            let visible = 0;
+            let changedCount = 0;
+            state.rows.forEach((row) => {
+                const { el, entry } = row;
+                if (isChanged(entry)) changedCount++;
+
+                let ok = true;
+                if (q && !visibleName(entry).toLowerCase().includes(q)) ok = false;
+                if (ok && cat) ok = matchesCategory(entry, cat);
+                if (ok && state.showChangedOnly && !isChanged(entry)) ok = false;
+                if (ok && entry.type === 2 && sexFiltered(entry)) ok = false;
+                el.style.display = ok ? "" : "none";
+                row.visible = ok;
+                if (ok) visible++;
+            });
+            $("rm-count").textContent = visible + " / " + state.rows.length + " sliders · " + changedCount + " changed";
+            rebuildGroupHeaders();
+        }
+
+        // Visual separators for slider families named "Group - Name"
+        // (3BA "Breasts - *", HIMBO "Pecs - *", ...). Rebuilt on every filter
+        // pass from the currently visible rows.
+        function rebuildGroupHeaders() {
+            const list = $("rm-list");
+            list.querySelectorAll(".group-header").forEach((h) => h.remove());
+
+            let curGroup = null;
+            let groupRows = [];
+            const flush = () => {
+                if (curGroup && groupRows.length >= 2) {
+                    const h = document.createElement("div");
+                    h.className = "group-header";
+                    h.textContent = curGroup;
+                    list.insertBefore(h, groupRows[0].el);
+                }
+                groupRows = [];
+            };
+
+            state.rows.forEach((row) => {
+                if (!row.visible || row.entry.type !== 2) {
+                    flush();
+                    curGroup = null;
+                    return;
+                }
+                const m = visibleName(row.entry).match(/^(.{2,}?)\s*[-–:]\s+/);
+                const g = m ? m[1].trim() : null;
+                if (g !== curGroup) {
+                    flush();
+                    curGroup = g;
+                }
+                if (g) groupRows.push(row);
+            });
+            flush();
+        }
+
+        // ---------- outbound (JS -> C++) ----------
+
+        $("rm-search").addEventListener("input", applyFilter);
+        $("reload-btn").addEventListener("click", () => window.rmpRequestData(""));
+        $("undo-btn").addEventListener("click", undo);
+        $("redo-btn").addEventListener("click", redo);
+        $("changed-toggle").addEventListener("click", () => {
+            state.showChangedOnly = !state.showChangedOnly;
+            $("changed-toggle").classList.toggle("active", state.showChangedOnly);
+            applyFilter();
+        });
+        $("overdrive-toggle").addEventListener("click", () => {
+            state.overdrive = !state.overdrive;
+            $("overdrive-toggle").classList.toggle("active", state.overdrive);
+            $("overdrive-toggle").textContent = state.overdrive ? "Overdrive on" : "Overdrive";
+            store.set("rmpOverdrive", state.overdrive ? "1" : "0");
+        });
+        $("overdrive-toggle").classList.toggle("active", state.overdrive);
+        if (state.overdrive) $("overdrive-toggle").textContent = "Overdrive on";
+        $("sex-toggle").addEventListener("click", () => {
+            state.sexFilter = !state.sexFilter;
+            $("sex-toggle").classList.toggle("active", state.sexFilter);
+            store.set("rmpSexFilter", state.sexFilter ? "1" : "0");
+            applyFilter();
+        });
+        $("sex-toggle").classList.toggle("active", state.sexFilter);
+        updateHistoryButtons();
+
+        function done() {
+            window.rmpDone($("rm-name").value.trim());
+        }
+
+        $("done-btn").addEventListener("click", done);
+        document.addEventListener("keydown", (ev) => {
+            if (ev.key === "Escape") done();
+            if (ev.key === "Enter" && document.activeElement === $("rm-name")) done();
+        });
+    </script>
+</body>
+</html>
