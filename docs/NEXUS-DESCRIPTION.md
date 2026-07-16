@@ -1,12 +1,12 @@
 # RaceMenu Prisma — Nexus page copy
 
-Use this file as the page body. Replace the four `SCREENSHOT` markers with the Nexus image URLs after uploading the category screenshots.
+Use this file as the page body. The screenshots below are hosted on ImgBB; upload them to Nexus later if you want to use Nexus-hosted images instead.
 
 ```bbcode
 [center][size=6][b][color=#e4bd72]RACEMENU PRISMA[/color][/b][/size]
 [size=3]A character creator built for a serious Skyrim load order.[/size][/center]
 
-[center][img]SCREENSHOT_HEADER[/img][/center]
+[center][img]https://i.ibb.co/pTpHNv0/Chat-GPT-Image-17-2026-00-06-12-6.png[/img][/center]
 
 [size=4][b]RaceMenu is still the best character creator Skyrim has. Prisma gives it a front end that can keep up with a modern mod list.[/b][/size]
 
@@ -24,7 +24,8 @@ Hundreds of sliders, custom races, layered paints, 3BA or HIMBO morphs, presets 
 [*][b]Useful scene tools.[/b] Rotation, zoom, light, poses, undress, and a one-click neutral standing pose.[/*]
 [/list]
 
-[center][img]SCREENSHOT_RACES[/img][/center]
+[center][img]https://i.ibb.co/6082cdyF/Chat-GPT-Image-17-2026-00-06-12-5.png[/img]
+[img]https://i.ibb.co/4wptgyDy/Chat-GPT-Image-17-2026-00-06-12-4.png[/img][/center]
 
 [color=#e4bd72][size=5][b]The important technical point[/b][/size][/color]
 
@@ -48,7 +49,8 @@ When Skyrim is launched through MO2, that path is virtualized and the file appea
 
 RaceMenu `0.0` exports as BodySlide `0`. RaceMenu `1.0` exports as `100`. Prisma deliberately writes the current value to both `small` and `big`, so the preset has the same morph at both body weights. Supported overdrive values are preserved instead of silently clipped.
 
-[center][img]SCREENSHOT_MORPHS[/img][/center]
+[center][img]https://i.ibb.co/rK962p3m/Chat-GPT-Image-17-2026-00-06-11-3.png[/img]
+[img]https://i.ibb.co/cKsZbnbR/Chat-GPT-Image-17-2026-00-06-11-2.png[/img][/center]
 
 [color=#e4bd72][size=5][b]Requirements[/b][/size][/color]
 
@@ -98,5 +100,5 @@ The C++ bridge and complete UI source are available under GPL-3.0 at [url=https:
 
 Thanks to expired6978 for RaceMenu, the PrismaUI project, SKSE, and CommonLibSSE-NG. RaceMenu Prisma is an independent add-on; RaceMenu and its files remain the property of their respective author.
 
-[center][img]SCREENSHOT_PRESETS[/img][/center]
+[center][img]https://i.ibb.co/8nHvQRWg/Chat-GPT-Image-17-2026-00-06-11-1.png[/img][/center]
 ```
