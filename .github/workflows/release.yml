@@ -38,7 +38,7 @@ jobs:
           New-Item -ItemType Directory -Force pkg/SKSE/Plugins | Out-Null
           Copy-Item build/windows/x64/release/RaceMenuPrisma.dll pkg/SKSE/Plugins/
           Copy-Item build/windows/x64/release/RaceMenuPrisma.pdb pkg/SKSE/Plugins/ -ErrorAction SilentlyContinue
-          Copy-Item view/index.html pkg/SKSE/Plugins/
+          Copy-Item view pkg/PrismaUI/view -Recurse
           Compress-Archive -Path pkg/* -DestinationPath "RaceMenuPrisma-$tag.zip"
 
       - name: Create GitHub Release
