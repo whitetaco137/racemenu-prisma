@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+    workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Cache xmake packages
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/.xmake/packages
+          key: xmake-packages-${{ hashFiles('xmake-requires.lock') }}
+          restore-keys: xmake-packages-
+
+      - name: Build
+        run: xmake build -y
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          New-Item -ItemType Directory -Force pkg/SKSE/Plugins | Out-Null
+          Copy-Item build/windows/x64/release/RaceMenuPrisma.dll pkg/SKSE/Plugins/
+          Copy-Item build/windows/x64/release/RaceMenuPrisma.pdb pkg/SKSE/Plugins/ -ErrorAction SilentlyContinue
+          Copy-Item view/index.html pkg/SKSE/Plugins/
+          Compress-Archive -Path pkg/* -DestinationPath "RaceMenuPrisma-$tag.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: RaceMenuPrisma-${{ github.ref_name }}.zip
